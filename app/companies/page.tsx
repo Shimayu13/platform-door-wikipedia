@@ -6,9 +6,76 @@ import { Badge } from "@/components/ui/badge"
 import { Train, ExternalLink, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { getRailwayCompanies } from "@/lib/supabase"
+import { useState, useEffect } from "react"
+import type { RailwayCompany } from "@/lib/supabase"
 
-export default async function CompaniesPage() {
-  const companies = await getRailwayCompanies()
+export default function CompaniesPage() {
+  const [companies, setCompanies] = useState<RailwayCompany[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        const data = await getRailwayCompanies()
+        setCompanies(data)
+      } catch (error) {
+        console.error("Error fetching companies:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCompanies()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* ヘッダー */}
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-2">
+                <Train className="h-8 w-8 text-blue-600" />
+                <h1 className="text-xl font-bold text-gray-900">ホームドア情報局</h1>
+              </div>
+              <nav className="flex space-x-4">
+                <Button variant="ghost" asChild>
+                  <Link href="/">ホーム</Link>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <Link href="/stations">駅検索</Link>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <Link href="/contribute">情報提供</Link>
+                </Button>
+                <Button variant="outline" size="sm">
+                  ログイン
+                </Button>
+              </nav>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">鉄道会社一覧</h2>
+            <p className="text-gray-600">各鉄道会社のホームドア整備状況を確認できます</p>
+          </div>
+
+          <Card className="text-center py-12">
+            <CardContent>
+              <div className="text-gray-400 mb-4">
+                <Train className="h-12 w-12 mx-auto animate-pulse" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">データを読み込み中...</h3>
+              <p className="text-gray-600">しばらくお待ちください</p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -122,7 +189,7 @@ export default async function CompaniesPage() {
           ))}
         </div>
 
-        {companies.length === 0 && (
+        {companies.length === 0 && !loading && (
           <Card className="text-center py-12">
             <CardContent>
               <div className="text-gray-400 mb-4">

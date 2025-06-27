@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, MapPin, Train, Clock, CheckCircle, AlertCircle, XCircle } from "lucide-react"
 import { getStations, getRailwayCompanies } from "@/lib/supabase"
 import Link from "next/link"
+import { useState, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import type { Station, RailwayCompany, PlatformDoor } from "@/lib/supabase"
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -33,24 +36,114 @@ const getStatusBadge = (status: string) => {
   return <Badge variant={variants[status as keyof typeof variants] || "secondary"}>{status}</Badge>
 }
 
-export default async function StationsPage({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string | string[] | undefined }
-}) {
-  const search = typeof searchParams.search === "string" ? searchParams.search : ""
-  const company = typeof searchParams.company === "string" ? searchParams.company : "all"
-  const prefecture = typeof searchParams.prefecture === "string" ? searchParams.prefecture : "all"
-  const status = typeof searchParams.status === "string" ? searchParams.status : "all"
+export default function StationsPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  
+  const [stations, setStations] = useState<Station[]>([])
+  const [companies, setCompanies] = useState<RailwayCompany[]>([])
+  const [loading, setLoading] = useState(true)
+  
+  const search = searchParams.get("search") || ""
+  const company = searchParams.get("company") || "all"
+  const prefecture = searchParams.get("prefecture") || "all"
+  const status = searchParams.get("status") || "all"
 
-  const stations = await getStations({
-    search,
-    company: company !== "all" ? company : undefined,
-    prefecture: prefecture !== "all" ? prefecture : undefined,
-    status: status !== "all" ? status : undefined,
-  })
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [stationsData, companiesData] = await Promise.all([
+          getStations({
+            search: search || undefined,
+            company: company !== "all" ? company : undefined,
+            prefecture: prefecture !== "all" ? prefecture : undefined,
+            status: status !== "all" ? status : undefined,
+          }),
+          getRailwayCompanies()
+        ])
+        
+        setStations(stationsData)
+        setCompanies(companiesData)
+      } catch (error) {
+        console.error("Error fetching data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const companies = await getRailwayCompanies()
+    fetchData()
+  }, [search, company, prefecture, status])
+
+  const handleSearchChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value) {
+      params.set("search", value)
+    } else {
+      params.delete("search")
+    }
+    router.push(`/stations?${params.toString()}`)
+  }
+
+  const handleFilterChange = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value && value !== "all") {
+      params.set(key, value)
+    } else {
+      params.delete(key)
+    }
+    router.push(`/stations?${params.toString()}`)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* ヘッダー */}
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-2">
+                <Train className="h-8 w-8 text-blue-600" />
+                <h1 className="text-xl font-bold text-gray-900">ホームドア情報局</h1>
+              </div>
+              <nav className="flex space-x-4">
+                <Button variant="ghost" asChild>
+                  <Link href="/">ホーム</Link>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <Link href="/contribute">情報提供</Link>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <Link href="/companies">鉄道会社</Link>
+                </Button>
+                <Button variant="ghost">ニュース</Button>
+                <Button variant="outline" size="sm">
+                  ログイン
+                </Button>
+              </nav>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">駅検索</h2>
+            <p className="text-gray-600">全国の駅のホームドア設置状況を検索できます</p>
+          </div>
+
+          <Card className="text-center py-12">
+            <CardContent>
+              <div className="text-gray-400 mb-4">
+                <Train className="h-12 w-12 mx-auto animate-pulse" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">データを読み込み中...</h3>
+              <p className="text-gray-600">しばらくお待ちください</p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -97,10 +190,15 @@ export default async function StationsPage({
               <div className="lg:col-span-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input placeholder="駅名で検索..." value={search} className="pl-10" readOnly />
+                  <Input 
+                    placeholder="駅名で検索..." 
+                    value={search} 
+                    className="pl-10" 
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                  />
                 </div>
               </div>
-              <Select value={company}>
+              <Select value={company} onValueChange={(value) => handleFilterChange("company", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="鉄道会社" />
                 </SelectTrigger>
@@ -113,7 +211,7 @@ export default async function StationsPage({
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={prefecture}>
+              <Select value={prefecture} onValueChange={(value) => handleFilterChange("prefecture", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="都道府県" />
                 </SelectTrigger>
@@ -124,7 +222,7 @@ export default async function StationsPage({
                   <SelectItem value="大阪府">大阪府</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={status}>
+              <Select value={status} onValueChange={(value) => handleFilterChange("status", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="設置状況" />
                 </SelectTrigger>
@@ -176,7 +274,7 @@ export default async function StationsPage({
                         <CardTitle className="text-lg">{station.name}</CardTitle>
                         <CardDescription className="flex items-center mt-1">
                           <Train className="mr-1 h-3 w-3" />
-                          {station.lines?.name || "路線情報なし"}
+                          {station.station_lines?.[0]?.lines?.name || "路線情報なし"}
                         </CardDescription>
                       </div>
                       {getStatusIcon(mainStatus)}
@@ -187,7 +285,7 @@ export default async function StationsPage({
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">鉄道会社</span>
                         <span className="text-sm font-medium">
-                          {station.lines?.railway_companies?.name || "情報なし"}
+                          {station.station_lines?.[0]?.lines?.railway_companies?.name || "情報なし"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -219,27 +317,27 @@ export default async function StationsPage({
               <Card className="text-center py-12">
                 <CardContent>
                   <div className="text-gray-400 mb-4">
-                    <Train className="h-12 w-12 mx-auto" />
+                    <Search className="h-12 w-12 mx-auto" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">駅データを準備中です</h3>
-                  <p className="text-gray-600 mb-4">データベースのセットアップが完了すると駅情報が表示されます</p>
-                  <Button variant="outline" onClick={() => window.location.reload()}>
-                    再読み込み
-                  </Button>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">検索結果が見つかりませんでした</h3>
+                  <p className="text-gray-600">検索条件を変更して再度お試しください</p>
                 </CardContent>
               </Card>
             </div>
           )}
         </div>
 
-        {stations.length === 0 && (
+        {stations.length === 0 && !loading && (
           <Card className="text-center py-12">
             <CardContent>
               <div className="text-gray-400 mb-4">
-                <Search className="h-12 w-12 mx-auto" />
+                <Train className="h-12 w-12 mx-auto" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">検索結果が見つかりませんでした</h3>
-              <p className="text-gray-600">検索条件を変更して再度お試しください</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">駅データを準備中です</h3>
+              <p className="text-gray-600 mb-4">データベースのセットアップが完了すると駅情報が表示されます</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                再読み込み
+              </Button>
             </CardContent>
           </Card>
         )}
