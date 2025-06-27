@@ -40,7 +40,7 @@ export interface StationLine {
 export interface Station {
   id: string
   name: string
-  line_id?: string // 後方互換性のため残す
+  // line_id?: string // 削除またはコメントアウト
   latitude?: number
   longitude?: number
   prefecture: string
@@ -49,10 +49,11 @@ export interface Station {
   station_code?: string
   created_at: string
   updated_at: string
-  lines?: Line // 後方互換性のため残す
+  // lines?: Line // 削除またはコメントアウト
   station_lines?: StationLine[] // 新しい多対多関係
   platform_doors?: PlatformDoor[]
 }
+
 
 export interface PlatformDoor {
   id: string
