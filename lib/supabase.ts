@@ -25,11 +25,12 @@ export interface Line {
   railway_companies?: RailwayCompany
 }
 
-// 駅と路線の関係を表す中間テーブル
+// 駅と路線の関係を表す中間テーブル（駅ナンバリングを追加）
 export interface StationLine {
   id: string
   station_id: string
   line_id: string
+  station_code?: string // 路線ごとの駅ナンバリング
   platform_prefix?: string
   notes?: string
   created_at: string
@@ -40,20 +41,16 @@ export interface StationLine {
 export interface Station {
   id: string
   name: string
-  // line_id?: string // 削除またはコメントアウト
   latitude?: number
   longitude?: number
   prefecture: string
   city?: string
   address?: string
-  station_code?: string
   created_at: string
   updated_at: string
-  // lines?: Line // 削除またはコメントアウト
   station_lines?: StationLine[] // 新しい多対多関係
   platform_doors?: PlatformDoor[]
 }
-
 
 export interface PlatformDoor {
   id: string
@@ -89,22 +86,25 @@ export interface News {
   updated_at: string
 }
 
-// 新しい駅登録用の型（複数路線対応）
+// 新しい駅登録用の型（複数路線と駅ナンバリング対応）
 export interface StationInput {
   name: string
-  line_ids: string[] // 複数路線対応
+  lines: Array<{
+    line_id: string
+    station_code?: string // 路線ごとの駅ナンバリング
+  }> // 路線ごとの詳細情報
   latitude?: number
   longitude?: number
   prefecture: string
   city?: string
   address?: string
-  station_code?: string
 }
 
-// 駅-路線関係の登録用型
+// 駅-路線関係の登録用型（駅ナンバリング追加）
 export interface StationLineInput {
   station_id: string
   line_id: string
+  station_code?: string // 路線ごとの駅ナンバリング
   platform_prefix?: string
   notes?: string
 }

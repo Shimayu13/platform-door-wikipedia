@@ -72,11 +72,20 @@ export function StationSelector({ onStationSelect, selectedStation }: StationSel
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-blue-900">{selectedStation.name}</h3>
-                  <div className="flex items-center space-x-2 text-sm text-blue-700 mt-1">
-                    <Train className="h-3 w-3" />
-                    <span>{selectedStation.lines?.name}</span>
-                    <span>•</span>
-                    <span>{selectedStation.lines?.railway_companies?.name}</span>
+                  <div className="space-y-1 mt-2">
+                    {selectedStation.station_lines?.map((stationLine, index) => (
+                      <div key={index} className="flex items-center space-x-2 text-sm text-blue-700">
+                        <Train className="h-3 w-3" />
+                        <span>{stationLine.lines?.name}</span>
+                        <span>•</span>
+                        <span>{stationLine.lines?.railway_companies?.name}</span>
+                        {stationLine.station_code && (
+                          <Badge variant="outline" className="text-xs bg-white">
+                            {stationLine.station_code}
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <Badge variant="secondary">選択中</Badge>
@@ -101,25 +110,29 @@ export function StationSelector({ onStationSelect, selectedStation }: StationSel
                       onClick={() => onStationSelect(station)}
                     >
                       <div className="flex justify-between items-start">
-                        <div>
+                        <div className="flex-1">
                           <h5 className="font-medium">{station.name}</h5>
-                          <div className="flex items-center space-x-2 text-sm text-gray-600 mt-1">
-                            <Train className="h-3 w-3" />
-                            <span>{station.lines?.name}</span>
-                            <span>•</span>
-                            <span>{station.lines?.railway_companies?.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-xs text-gray-500 mt-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>{station.prefecture}</span>
-                            {station.city && <span>{station.city}</span>}
+                          <div className="space-y-1 mt-1">
+                            {station.station_lines?.map((stationLine, index) => (
+                              <div key={index} className="flex items-center space-x-2 text-sm text-gray-600">
+                                <Train className="h-3 w-3" />
+                                <span>{stationLine.lines?.name}</span>
+                                <span>•</span>
+                                <span>{stationLine.lines?.railway_companies?.name}</span>
+                                {stationLine.station_code && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {stationLine.station_code}
+                                  </Badge>
+                                )}
+                              </div>
+                            ))}
+                            <div className="flex items-center space-x-1 text-xs text-gray-500">
+                              <MapPin className="h-3 w-3" />
+                              <span>{station.prefecture}</span>
+                              {station.city && <span>{station.city}</span>}
+                            </div>
                           </div>
                         </div>
-                        {station.station_code && (
-                          <Badge variant="outline" className="text-xs">
-                            {station.station_code}
-                          </Badge>
-                        )}
                       </div>
                     </div>
                   ))}

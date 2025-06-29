@@ -142,6 +142,9 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
     setLoading(true)
     setMessage(null)
 
+    console.log('Current user ID:', userId);
+    console.log('Form data:', formData);
+
     if (!formData.line_id) {
       setMessage({ type: "error", text: "路線を選択してください" })
       setLoading(false)
@@ -149,7 +152,111 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
     }
 
     try {
-      const result = await updatePlatformDoor(formData, userId)
+      // クライアントサイドのSupabaseクライアントを使用
+      const { supabase } = await import('@/lib/supabase')
+
+      // 認証状態を確認
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('Client-side authenticated user:', user);
+
+      if (!user) {
+        setMessage({ type: "error", text: "認証が必要です。ログインしてください。" })
+        setLoading(false)
+        return
+      }
+
+      // ユーザープロフィールを確認
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      console.log('User profile:', profile);
+
+      if (!profile || !['提供者', '編集者', '開発者'].includes(profile.role)) {
+        setMessage({ type: "error", text: "この操作を行う権限がありません。" })
+        setLoading(false)
+        return
+      }
+
+      // 既存のレコードをチェック
+      const { data: existing, error: checkError } = await supabase
+        .from("platform_doors")
+        .select("*")
+        .eq("station_id", formData.station_id)
+        .eq("line_id", formData.line_id)
+        .eq("platform_number", formData.platform_number)
+        .single()
+
+      if (checkError && checkError.code !== "PGRST116") {
+        console.error("Error checking existing record:", checkError)
+        setMessage({ type: "error", text: "データの確認に失敗しました" })
+        setLoading(false)
+        return
+      }
+
+      let result
+      if (existing) {
+        // 更新
+        const { data: updated, error: updateError } = await supabase
+          .from("platform_doors")
+          .update({
+            platform_name: formData.platform_name,
+            status: formData.status,
+            direction: formData.direction,
+            installation_date: formData.installation_date || null,
+            planned_date: formData.planned_date || null,
+            installation_datetime: formData.installation_datetime || null,
+            operation_datetime: formData.operation_datetime || null,
+            door_type: formData.door_type,
+            manufacturer: formData.manufacturer,
+            notes: formData.notes,
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+          .select()
+          .single()
+
+        if (updateError) {
+          console.error("Error updating platform door:", updateError)
+          setMessage({ type: "error", text: `データの更新に失敗しました: ${updateError.message}` })
+          setLoading(false)
+          return
+        }
+        result = { success: true, data: updated }
+      } else {
+        // 新規作成
+        const { data: created, error: createError } = await supabase
+          .from("platform_doors")
+          .insert({
+            station_id: formData.station_id,
+            line_id: formData.line_id,
+            platform_number: formData.platform_number,
+            platform_name: formData.platform_name,
+            status: formData.status,
+            direction: formData.direction,
+            installation_date: formData.installation_date || null,
+            planned_date: formData.planned_date || null,
+            installation_datetime: formData.installation_datetime || null,
+            operation_datetime: formData.operation_datetime || null,
+            door_type: formData.door_type,
+            manufacturer: formData.manufacturer,
+            notes: formData.notes,
+            updated_by: user.id,
+          })
+          .select()
+          .single()
+
+        if (createError) {
+          console.error("Error creating platform door:", createError)
+          setMessage({ type: "error", text: `データの作成に失敗しました: ${createError.message}` })
+          setLoading(false)
+          return
+        }
+        result = { success: true, data: created }
+      }
 
       if (result.success) {
         setMessage({ type: "success", text: "ホームドア情報を更新しました" })
@@ -163,8 +270,6 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
         }
 
         resetForm()
-      } else {
-        setMessage({ type: "error", text: result.error || "更新に失敗しました" })
       }
     } catch (error) {
       console.error("Error submitting form:", error)

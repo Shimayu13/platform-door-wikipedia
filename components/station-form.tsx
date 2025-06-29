@@ -10,13 +10,19 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, AlertCircle, Save, MapPin, Plus, X } from "lucide-react"
+import { CheckCircle, AlertCircle, Save, MapPin, Plus, X, Edit, Check } from "lucide-react"
 import { createStation } from "@/lib/actions"
 import { getRailwayCompanies, getLines, type RailwayCompany, type Line, type StationInput } from "@/lib/supabase"
 
 interface StationFormProps {
   userId: string
   onSuccess?: (station: any) => void
+}
+
+interface SelectedLine {
+  line_id: string
+  line: Line
+  station_code?: string
 }
 
 const PREFECTURES = [
@@ -72,24 +78,27 @@ const PREFECTURES = [
 export function StationForm({ userId, onSuccess }: StationFormProps) {
   const [companies, setCompanies] = useState<RailwayCompany[]>([])
   const [allLines, setAllLines] = useState<Line[]>([])
-  const [selectedLines, setSelectedLines] = useState<Line[]>([])
+  const [selectedLines, setSelectedLines] = useState<SelectedLine[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null)
 
-  const [formData, setFormData] = useState<StationInput>({
+  const [formData, setFormData] = useState({
     name: "",
-    line_ids: [],
-    latitude: undefined,
-    longitude: undefined,
+    latitude: undefined as number | undefined,
+    longitude: undefined as number | undefined,
     prefecture: "",
     city: "",
     address: "",
-    station_code: "",
   })
 
   const [lineSelection, setLineSelection] = useState({
     companyId: "",
     lineId: "",
+  })
+
+  const [lineDetails, setLineDetails] = useState({
+    station_code: "",
   })
 
   useEffect(() => {
@@ -114,20 +123,53 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
     if (!line) return
 
     // 既に選択されている路線かチェック
-    if (selectedLines.some((l) => l.id === line.id)) {
+    if (selectedLines.some((l) => l.line_id === line.id)) {
       setMessage({ type: "error", text: "この路線は既に選択されています" })
       return
     }
 
-    setSelectedLines([...selectedLines, line])
-    setFormData({ ...formData, line_ids: [...formData.line_ids, line.id] })
+    const newSelectedLine: SelectedLine = {
+      line_id: line.id,
+      line: line,
+      station_code: lineDetails.station_code || undefined,
+    }
+
+    setSelectedLines([...selectedLines, newSelectedLine])
     setLineSelection({ companyId: "", lineId: "" })
+    setLineDetails({ station_code: "" })
     setMessage(null)
   }
 
-  const handleRemoveLine = (lineId: string) => {
-    setSelectedLines(selectedLines.filter((l) => l.id !== lineId))
-    setFormData({ ...formData, line_ids: formData.line_ids.filter((id) => id !== lineId) })
+  const handleRemoveLine = (index: number) => {
+    setSelectedLines(selectedLines.filter((_, i) => i !== index))
+    setEditingLineIndex(null)
+  }
+
+  const startEditLine = (index: number) => {
+    const line = selectedLines[index]
+    setLineDetails({
+      station_code: line.station_code || "",
+    })
+    setEditingLineIndex(index)
+  }
+
+  const saveEditLine = () => {
+    if (editingLineIndex === null) return
+
+    const updatedLines = [...selectedLines]
+    updatedLines[editingLineIndex] = {
+      ...updatedLines[editingLineIndex],
+      station_code: lineDetails.station_code || undefined,
+    }
+
+    setSelectedLines(updatedLines)
+    setEditingLineIndex(null)
+    setLineDetails({ station_code: "" })
+  }
+
+  const cancelEditLine = () => {
+    setEditingLineIndex(null)
+    setLineDetails({ station_code: "" })
   }
 
   const getFilteredLines = () => {
@@ -140,14 +182,27 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
     setLoading(true)
     setMessage(null)
 
-    if (formData.line_ids.length === 0) {
+    if (selectedLines.length === 0) {
       setMessage({ type: "error", text: "少なくとも1つの路線を選択してください" })
       setLoading(false)
       return
     }
 
     try {
-      const result = await createStation(formData, userId)
+      const stationInput: StationInput = {
+        name: formData.name,
+        lines: selectedLines.map((sl) => ({
+          line_id: sl.line_id,
+          station_code: sl.station_code,
+        })),
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+        prefecture: formData.prefecture,
+        city: formData.city,
+        address: formData.address,
+      }
+
+      const result = await createStation(stationInput, userId)
 
       if (result.success) {
         setMessage({ type: "success", text: "駅を登録しました" })
@@ -155,16 +210,15 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
         // フォームをリセット
         setFormData({
           name: "",
-          line_ids: [],
           latitude: undefined,
           longitude: undefined,
           prefecture: "",
           city: "",
           address: "",
-          station_code: "",
         })
         setSelectedLines([])
         setLineSelection({ companyId: "", lineId: "" })
+        setLineDetails({ station_code: "" })
 
         if (onSuccess) {
           onSuccess(result.data)
@@ -215,38 +269,82 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="station_code">駅コード</Label>
-              <Input
-                id="station_code"
-                value={formData.station_code}
-                onChange={(e) => setFormData({ ...formData, station_code: e.target.value })}
-                placeholder="JY17"
-              />
-            </div>
           </div>
 
-          {/* 路線選択 */}
+          {/* 路線選択と管理 */}
           <div className="space-y-4">
-            <Label>路線 *</Label>
+            <Label>路線と駅ナンバリング *</Label>
 
             {/* 選択された路線一覧 */}
             {selectedLines.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">選択された路線:</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedLines.map((line) => (
-                    <Badge key={line.id} variant="secondary" className="flex items-center gap-2">
-                      <span>{line.railway_companies?.name}</span>
-                      <span>{line.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLine(line.id)}
-                        className="ml-1 hover:text-red-600"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">登録された路線:</p>
+                <div className="space-y-3">
+                  {selectedLines.map((selectedLine, index) => (
+                    <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="secondary">
+                              {selectedLine.line.railway_companies?.name}
+                            </Badge>
+                            <span className="font-medium">{selectedLine.line.name}</span>
+                          </div>
+                          
+                          {editingLineIndex === index ? (
+                            // 編集モード
+                            <div className="space-y-3">
+                              <div>
+                                <Label className="text-xs">駅ナンバリング</Label>
+                                <Input
+                                  value={lineDetails.station_code}
+                                  onChange={(e) => setLineDetails({ station_code: e.target.value })}
+                                  placeholder="JY17"
+                                  className="h-8"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button type="button" size="sm" onClick={saveEditLine}>
+                                  <Check className="h-3 w-3 mr-1" />
+                                  保存
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" onClick={cancelEditLine}>
+                                  キャンセル
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            // 表示モード
+                            <div className="text-sm text-gray-600">
+                              {selectedLine.station_code && (
+                                <div>駅ナンバリング: <span className="font-mono">{selectedLine.station_code}</span></div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {editingLineIndex !== index && (
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEditLine(index)}
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRemoveLine(index)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -255,43 +353,57 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
             {/* 路線追加フォーム */}
             <div className="border rounded-lg p-4 bg-gray-50">
               <p className="text-sm font-medium mb-3">路線を追加</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Select
-                  value={lineSelection.companyId}
-                  onValueChange={(value) => setLineSelection({ companyId: value, lineId: "" })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="鉄道会社を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>
-                        {company.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Select
+                    value={lineSelection.companyId}
+                    onValueChange={(value) => setLineSelection({ companyId: value, lineId: "" })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="鉄道会社を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select
-                  value={lineSelection.lineId}
-                  onValueChange={(value) => setLineSelection({ ...lineSelection, lineId: value })}
-                  disabled={!lineSelection.companyId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="路線を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getFilteredLines().map((line) => (
-                      <SelectItem key={line.id} value={line.id}>
-                        {line.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Select
+                    value={lineSelection.lineId}
+                    onValueChange={(value) => setLineSelection({ ...lineSelection, lineId: value })}
+                    disabled={!lineSelection.companyId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="路線を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getFilteredLines().map((line) => (
+                        <SelectItem key={line.id} value={line.id}>
+                          {line.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 路線詳細情報 */}
+                <div>
+                  <Label htmlFor="new-station-code" className="text-xs">駅ナンバリング</Label>
+                  <Input
+                    id="new-station-code"
+                    value={lineDetails.station_code}
+                    onChange={(e) => setLineDetails({ station_code: e.target.value })}
+                    placeholder="JY17"
+                    className="h-8"
+                  />
+                </div>
 
                 <Button type="button" onClick={handleAddLine} disabled={!lineSelection.lineId} size="sm">
                   <Plus className="h-4 w-4 mr-2" />
-                  追加
+                  路線を追加
                 </Button>
               </div>
             </div>

@@ -40,6 +40,12 @@ export function useAuth() {
       const {
         data: { session },
       } = await supabase.auth.getSession()
+
+            // === デバッグログを追加 ===
+      console.log('Initial session:', session);
+      console.log('Session user:', session?.user);
+      // === ここまで ===
+      
       setUser(session?.user || null)
       setLoading(false)
     }

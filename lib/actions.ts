@@ -1,8 +1,29 @@
 "use server"
 
+import { createClient } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
 import type { StationInput, StationLineInput } from "@/lib/supabase"
+
+// Service Role Key用のクライアント（RLSをバイパス）
+function createAdminClient() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    console.warn("SUPABASE_SERVICE_ROLE_KEY not found, falling back to regular client")
+    return null
+  }
+  
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
+}
 
 export interface PlatformDoorInput {
   station_id: string
@@ -22,8 +43,55 @@ export interface PlatformDoorInput {
 
 export async function createStation(data: StationInput, userId: string) {
   try {
+    // デバッグ用ログ
+    console.log("Creating station with data:", { ...data, userId })
+    
+    // Admin client を作成（Service Role Key使用）
+    const adminClient = createAdminClient()
+    if (!adminClient) {
+      return { success: false, error: "管理者権限が必要です。Service Role Keyを設定してください。" }
+    }
+    
+    // ユーザープロフィールの確認
+    const { data: profile, error: profileError } = await adminClient
+      .from("user_profiles")
+      .select("*")
+      .eq("id", userId)
+      .single()
+
+    console.log("User profile check:", { profile, profileError })
+
+    if (profileError && profileError.code === "PGRST116") {
+      // プロフィールが存在しない場合は作成
+      console.log("Creating user profile for:", userId)
+      const { error: createProfileError } = await adminClient
+        .from("user_profiles")
+        .insert({
+          id: userId,
+          display_name: "ユーザー",
+          role: "提供者"
+        })
+
+      if (createProfileError) {
+        console.error("Error creating user profile:", createProfileError)
+        return { success: false, error: "ユーザープロフィールの作成に失敗しました" }
+      }
+    } else if (profileError) {
+      console.error("Error checking user profile:", profileError)
+      return { success: false, error: "ユーザープロフィールの確認に失敗しました" }
+    }
+
     // 駅を作成
-    const { data: station, error: stationError } = await supabase
+    console.log("Inserting station with data:", {
+      name: data.name,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      prefecture: data.prefecture,
+      city: data.city,
+      address: data.address,
+    })
+    
+    const { data: station, error: stationError } = await adminClient
       .from("stations")
       .insert({
         name: data.name,
@@ -32,38 +100,62 @@ export async function createStation(data: StationInput, userId: string) {
         prefecture: data.prefecture,
         city: data.city,
         address: data.address,
-        station_code: data.station_code,
       })
       .select()
       .single()
 
     if (stationError) {
       console.error("Error creating station:", stationError)
-      return { success: false, error: "駅の作成に失敗しました" }
+      return { success: false, error: `駅の作成に失敗しました: ${stationError.message}` }
     }
+    
+    console.log("Successfully created station:", station)
 
-    // 駅と路線の関係を作成
-    const stationLinePromises = data.line_ids.map((lineId) =>
-      supabase.from("station_lines").insert({
+    // 駅と路線の関係を作成（駅ナンバリング含む）
+    console.log("Creating station_lines for lines:", data.lines)
+    
+    const stationLineResults = []
+    for (const lineData of data.lines) {
+      console.log("Inserting station_line:", {
         station_id: station.id,
-        line_id: lineId,
-      }),
-    )
-
-    const stationLineResults = await Promise.all(stationLinePromises)
-    const stationLineErrors = stationLineResults.filter((result) => result.error)
-
-    if (stationLineErrors.length > 0) {
-      console.error("Error creating station lines:", stationLineErrors)
-      // 駅は作成されているので、エラーでも部分的に成功
+        line_id: lineData.line_id,
+        station_code: lineData.station_code,
+      })
+      
+      const { data: stationLineResult, error: stationLineError } = await adminClient
+        .from("station_lines")
+        .insert({
+          station_id: station.id,
+          line_id: lineData.line_id,
+          station_code: lineData.station_code,
+        })
+        .select()
+      
+      if (stationLineError) {
+        console.error("Error creating station_line:", stationLineError)
+        // エラーがあっても他の路線は登録を続行
+        stationLineResults.push({ error: stationLineError, lineData })
+      } else {
+        console.log("Successfully created station_line:", stationLineResult)
+        stationLineResults.push({ data: stationLineResult, lineData })
+      }
+    }
+    
+    console.log("Station line results:", stationLineResults)
+    
+    // エラーがあった路線をチェック
+    const failedLines = stationLineResults.filter(result => result.error)
+    if (failedLines.length > 0) {
+      console.warn("Some station lines failed to create:", failedLines)
+      // 部分的成功として扱う
     }
 
     // 作成履歴を記録
-    await supabase.from("update_history").insert({
+    await adminClient.from("update_history").insert({
       table_name: "stations",
       record_id: station.id,
       action: "INSERT",
-      new_data: { ...station, line_ids: data.line_ids },
+      new_data: { ...station, lines: data.lines },
       updated_by: userId,
     })
 
@@ -110,6 +202,62 @@ export async function addStationLine(data: StationLineInput, userId: string) {
     revalidatePath(`/stations/${data.station_id}`)
 
     return { success: true, data: stationLine }
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
+  }
+}
+
+export async function updateStationLine(stationLineId: string, data: Partial<StationLineInput>, userId: string) {
+  try {
+    // 既存のデータを取得
+    const { data: existing, error: fetchError } = await supabase
+      .from("station_lines")
+      .select("*")
+      .eq("id", stationLineId)
+      .single()
+
+    if (fetchError) {
+      console.error("Error fetching station line:", fetchError)
+      return { success: false, error: "データの取得に失敗しました" }
+    }
+
+    // データを更新
+    const { data: updated, error: updateError } = await supabase
+      .from("station_lines")
+      .update({
+        station_code: data.station_code,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", stationLineId)
+      .select(`
+        *,
+        lines (
+          *,
+          railway_companies (*)
+        )
+      `)
+      .single()
+
+    if (updateError) {
+      console.error("Error updating station line:", updateError)
+      return { success: false, error: "データの更新に失敗しました" }
+    }
+
+    // 更新履歴を記録
+    await supabase.from("update_history").insert({
+      table_name: "station_lines",
+      record_id: stationLineId,
+      action: "UPDATE",
+      old_data: existing,
+      new_data: updated,
+      updated_by: userId,
+    })
+
+    revalidatePath("/stations")
+    revalidatePath(`/stations/${existing.station_id}`)
+
+    return { success: true, data: updated }
   } catch (error) {
     console.error("Unexpected error:", error)
     return { success: false, error: "予期しないエラーが発生しました" }
