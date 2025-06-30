@@ -305,3 +305,71 @@ export async function getOrCreateUserProfile(userId: string, userEmail?: string)
     return null
   }
 }
+
+// パスワード変更（ログイン済みユーザー用）
+export async function changePassword(currentPassword: string, newPassword: string) {
+  try {
+    // 現在のパスワードで再認証
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.email) {
+      return { success: false, error: "ユーザー情報を取得できませんでした" }
+    }
+
+    // 現在のパスワードで認証確認
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    })
+
+    if (verifyError) {
+      return { success: false, error: "現在のパスワードが正しくありません" }
+    }
+
+    // 新しいパスワードに更新
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+
+    if (updateError) {
+      return { success: false, error: updateError.message }
+    }
+
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: "パスワード変更に失敗しました" }
+  }
+}
+
+// パスワードリセットメール送信
+export async function sendPasswordResetEmail(email: string) {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    })
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: "パスワードリセットメールの送信に失敗しました" }
+  }
+}
+
+// パスワードリセット確認（メールリンクから）
+export async function confirmPasswordReset(newPassword: string) {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: "パスワードの更新に失敗しました" }
+  }
+}

@@ -10,12 +10,25 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Train, User, Mail, Calendar, Save, AlertCircle, CheckCircle, Shield } from "lucide-react"
 import { useAuthContext } from "@/components/auth-provider"
 import { getOrCreateUserProfile, updateUserProfile, signOut, type UserProfile } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ROLE_DESCRIPTIONS, ROLE_COLORS, type UserRole } from "@/lib/permissions"
+import { 
+  Train, 
+  User, 
+  Mail, 
+  Calendar, 
+  Shield, 
+  CheckCircle, 
+  AlertCircle,
+  Save,
+  Lock,     // ✅ 追加
+  Crown,    // ✅ 追加
+  Settings  // ✅ 追加
+} from "lucide-react"
+
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuthContext()
@@ -256,6 +269,78 @@ export default function ProfilePage() {
                 </div>
               </CardContent>
             </Card>
+
+                        {/* セキュリティ情報 */}
+            <div className="lg:col-span-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Shield className="mr-2 h-5 w-5" />
+                    セキュリティ
+                  </CardTitle>
+                  <CardDescription>アカウントのセキュリティ設定</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <h4 className="font-medium">パスワード</h4>
+                        <p className="text-sm text-gray-600">最終更新: 不明</p>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href="/profile/change-password">
+                          <Lock className="h-4 w-4 mr-2" />
+                          変更
+                        </Link>
+                      </Button>
+                    </div>
+                    
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-1">セキュリティのヒント</h4>
+                      <ul className="text-sm text-blue-700 space-y-1">
+                        <li>• 定期的にパスワードを変更しましょう</li>
+                        <li>• 他のサービスとは異なるパスワードを使用しましょう</li>
+                        <li>• 6文字以上の複雑なパスワードを設定しましょう</li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ロール情報 */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Crown className="mr-2 h-5 w-5" />
+                    アクセス権限
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">現在のロール</span>
+                      <Badge className={getRoleBadgeClass(profile?.role || "閲覧者")}>
+                        {profile?.role || "閲覧者"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {ROLE_DESCRIPTIONS[profile?.role || "閲覧者"]}
+                    </p>
+                    
+                    {profile?.role === "開発者" && (
+                      <div className="pt-3 border-t">
+                        <Button variant="outline" size="sm" asChild className="w-full">
+                          <Link href="/admin">
+                            <Settings className="h-4 w-4 mr-2" />
+                            管理画面
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* 権限情報 */}
             {profile && (

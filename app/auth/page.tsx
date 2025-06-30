@@ -121,8 +121,7 @@ export default function AuthPage() {
                 </Alert>
               )}
 
-              {/* ログインタブ */}
-              <TabsContent value="signin" className="space-y-4 mt-6">
+              {/* ログインタブ */}<TabsContent value="signin" className="space-y-4 mt-6">
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">メールアドレス</Label>
@@ -140,7 +139,15 @@ export default function AuthPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signin-password">パスワード</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="signin-password">パスワード</Label>
+                      <Link 
+                        href="/auth/forgot-password" 
+                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        パスワードを忘れた方
+                      </Link>
+                    </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
