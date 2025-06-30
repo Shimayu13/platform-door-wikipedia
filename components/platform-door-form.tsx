@@ -11,16 +11,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { 
-  CheckCircle, 
-  Clock, 
-  AlertCircle, 
-  XCircle, 
-  Save, 
-  Trash2, 
-  Plus, 
-  Settings, 
-  Wrench, 
+import {
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  XCircle,
+  Save,
+  Trash2,
+  Plus,
+  Settings,
+  Wrench,
   Train,
   Edit,
   X,
@@ -144,7 +144,7 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
     setFormData({
       station_id: platform.station_id,
       line_id: platform.line_id,
-      platform_number: platform.platform_number,
+      platform_number: platform.platform_number || "",
       platform_name: platform.platform_name || "",
       status: platform.status,
       direction: platform.direction || "",
@@ -156,9 +156,10 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
       manufacturer: platform.manufacturer || "",
       notes: platform.notes || "",
     })
+
     setEditingPlatform(platform.id)
-    setNewPlatform(false)
     setViewMode('edit')
+    setMessage(null)
   }
 
   const startNew = () => {
@@ -409,8 +410,8 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="line_id">路線 *</Label>
-                  <Select 
-                    value={formData.line_id} 
+                  <Select
+                    value={formData.line_id}
                     onValueChange={(value) => handleInputChange('line_id', value)}
                     disabled={!!editingPlatform}
                   >
@@ -461,8 +462,8 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
 
                 <div>
                   <Label htmlFor="status">設置状況 *</Label>
-                  <Select 
-                    value={formData.status} 
+                  <Select
+                    value={formData.status}
                     onValueChange={(value) => handleInputChange('status', value)}
                   >
                     <SelectTrigger>
@@ -480,8 +481,8 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
 
                 <div>
                   <Label htmlFor="door_type">ドアタイプ</Label>
-                  <Select 
-                    value={formData.door_type} 
+                  <Select
+                    value={formData.door_type}
                     onValueChange={(value) => handleInputChange('door_type', value)}
                   >
                     <SelectTrigger>
@@ -499,8 +500,8 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
 
                 <div>
                   <Label htmlFor="manufacturer">メーカー</Label>
-                  <Select 
-                    value={formData.manufacturer} 
+                  <Select
+                    value={formData.manufacturer}
                     onValueChange={(value) => handleInputChange('manufacturer', value)}
                   >
                     <SelectTrigger>
@@ -615,7 +616,7 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
                                   <Badge variant="outline">{platform.direction}</Badge>
                                 )}
                               </div>
-                              
+
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-gray-600">
                                 {platform.door_type && (
                                   <div>ドアタイプ: {platform.door_type}</div>
@@ -636,14 +637,14 @@ export function PlatformDoorForm({ station, userId, canDelete = false }: Platfor
                                   </div>
                                 )}
                               </div>
-                              
+
                               {platform.notes && (
                                 <div className="mt-2 text-sm text-gray-600">
                                   備考: {platform.notes}
                                 </div>
                               )}
                             </div>
-                            
+
                             <div className="flex gap-2 ml-4">
                               <Button
                                 size="sm"

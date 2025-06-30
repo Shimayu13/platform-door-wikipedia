@@ -11,19 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, AlertCircle, Save, MapPin, Plus, X, Edit, Check } from "lucide-react"
-import { 
-  createStation, 
-  updateStation, 
+import {
+  createStation,
+  updateStation,
   addLineToStation,
   removeLineFromStation,
-  type StationUpdateInput 
+  type StationUpdateInput
 } from "@/lib/actions"
-import { 
-  getRailwayCompanies, 
-  getLines, 
-  type RailwayCompany, 
-  type Line, 
-  type StationInput 
+import {
+  getRailwayCompanies,
+  getLines,
+  type RailwayCompany,
+  type Line,
+  type StationInput
 } from "@/lib/supabase"
 
 interface StationFormProps {
@@ -71,12 +71,12 @@ const PREFECTURES = [
   "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"
 ]
 
-export function StationForm({ 
-  userId, 
-  mode = "create", 
-  stationData, 
-  onSuccess, 
-  onCancel 
+export function StationForm({
+  userId,
+  mode = "create",
+  stationData,
+  onSuccess,
+  onCancel
 }: StationFormProps) {
   const [companies, setCompanies] = useState<RailwayCompany[]>([])
   const [allLines, setAllLines] = useState<Line[]>([])
@@ -107,7 +107,7 @@ export function StationForm({
   useEffect(() => {
     loadCompanies()
     loadAllLines()
-    
+
     if (mode === "edit" && stationData) {
       initializeEditMode()
     }
@@ -125,19 +125,20 @@ export function StationForm({
       address: stationData.address || "",
     })
 
-    // 既存の路線データを設定
+    // 既存の路線情報を selectedLines に設定
     if (stationData.station_lines) {
-      const existingLines: SelectedLine[] = stationData.station_lines.map(sl => ({
-        line_id: sl.line_id,
+      const existingLines: SelectedLine[] = stationData.station_lines.map(stationLine => ({
+        line_id: stationLine.line_id,
         line: {
-          id: sl.line_id,
-          name: sl.lines?.name || "",
+          id: stationLine.line_id,
+          name: stationLine.lines?.name || "",
           company_id: "",
-          railway_companies: sl.lines?.railway_companies
+          railway_companies: stationLine.lines?.railway_companies
         } as Line,
-        station_code: sl.station_code,
-        existing_id: sl.id
+        station_code: stationLine.station_code || "",
+        existing_id: stationLine.id
       }))
+
       setSelectedLines(existingLines)
     }
   }
@@ -186,11 +187,11 @@ export function StationForm({
 
   const handleRemoveLine = async (index: number) => {
     const line = selectedLines[index]
-    
+
     if (mode === "edit" && line.existing_id) {
       // 既存の路線を削除
       if (!confirm("この路線を削除しますか？関連するホームドア情報がある場合は削除できません。")) return
-      
+
       setLoading(true)
       try {
         const result = await removeLineFromStation(line.existing_id, userId)
@@ -318,7 +319,7 @@ export function StationForm({
         if (result.success) {
           // 新しく追加された路線を処理
           const newLines = selectedLines.filter(line => !line.existing_id)
-          
+
           for (const line of newLines) {
             const addResult = await addLineToStation(
               stationData.id,
@@ -326,7 +327,7 @@ export function StationForm({
               line.station_code,
               userId
             )
-            
+
             if (!addResult.success) {
               console.error("Failed to add line:", addResult.error)
             }
@@ -429,9 +430,9 @@ export function StationForm({
                 type="number"
                 step="any"
                 value={formData.latitude || ""}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  latitude: e.target.value ? parseFloat(e.target.value) : undefined 
+                onChange={(e) => setFormData({
+                  ...formData,
+                  latitude: e.target.value ? parseFloat(e.target.value) : undefined
                 })}
                 placeholder="35.6894"
               />
@@ -444,9 +445,9 @@ export function StationForm({
                 type="number"
                 step="any"
                 value={formData.longitude || ""}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  longitude: e.target.value ? parseFloat(e.target.value) : undefined 
+                onChange={(e) => setFormData({
+                  ...formData,
+                  longitude: e.target.value ? parseFloat(e.target.value) : undefined
                 })}
                 placeholder="139.7006"
               />
@@ -475,7 +476,7 @@ export function StationForm({
                               <Badge variant="outline" className="text-xs">既存</Badge>
                             )}
                           </div>
-                          
+
                           {editingLineIndex === index ? (
                             // 編集モード
                             <div className="space-y-3">
@@ -507,7 +508,7 @@ export function StationForm({
                             </div>
                           )}
                         </div>
-                        
+
                         {editingLineIndex !== index && (
                           <div className="flex gap-2">
                             <Button
@@ -610,7 +611,7 @@ export function StationForm({
               <Save className="h-4 w-4 mr-2" />
               {loading ? "保存中..." : mode === "create" ? "駅を登録" : "変更を保存"}
             </Button>
-            
+
             {mode === "edit" && onCancel && (
               <Button type="button" variant="outline" onClick={onCancel}>
                 <X className="h-4 w-4 mr-2" />
