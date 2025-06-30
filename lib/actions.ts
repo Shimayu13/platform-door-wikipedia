@@ -1286,6 +1286,16 @@ export async function createRailwayCompany(
     const { supabase } = await import('@/lib/supabase')
 
     console.log("🔧 Creating railway company:", input);
+    
+    // 現在のセッション情報をデバッグ
+    const { data: session, error: sessionError } = await supabase.auth.getSession();
+    console.log("🔧 Current session:", session);
+    console.log("🔧 Session error:", sessionError);
+    
+    // 現在のユーザー情報をデバッグ
+    const { data: user, error: userError } = await supabase.auth.getUser();
+    console.log("🔧 Current user:", user);
+    console.log("🔧 User error:", userError);
 
     const { data, error } = await supabase
       .from('railway_companies')
@@ -1436,6 +1446,18 @@ export async function createLine(
   try {
     const { supabase } = await import('@/lib/supabase')
 
+    console.log("🚇 Creating line:", input);
+    
+    // 現在のセッション情報をデバッグ
+    const { data: session, error: sessionError } = await supabase.auth.getSession();
+    console.log("🚇 Current session:", session);
+    console.log("🚇 Session error:", sessionError);
+    
+    // 現在のユーザー情報をデバッグ
+    const { data: user, error: userError } = await supabase.auth.getUser();
+    console.log("🚇 Current user:", user);
+    console.log("🚇 User error:", userError);
+
     const { data, error } = await supabase
       .from('lines')
       .insert({
@@ -1453,6 +1475,8 @@ export async function createLine(
       `)
       .single()
 
+    console.log("🚇 Supabase response:", { data, error });
+
     if (error) {
       console.error('Error creating line:', error)
       return { 
@@ -1462,6 +1486,8 @@ export async function createLine(
           : '路線の作成に失敗しました'
       }
     }
+
+    console.log("✅ Line created successfully:", data);
 
     return { 
       success: true, 
@@ -1483,6 +1509,8 @@ export async function updateLine(
   try {
     const { supabase } = await import('@/lib/supabase')
 
+    console.log("🚇 Updating line:", lineId, input);
+
     const { data, error } = await supabase
       .from('lines')
       .update({
@@ -1499,6 +1527,8 @@ export async function updateLine(
       `)
       .single()
 
+    console.log("🚇 Update response:", { data, error });
+
     if (error) {
       console.error('Error updating line:', error)
       return { 
@@ -1508,6 +1538,8 @@ export async function updateLine(
           : '路線の更新に失敗しました'
       }
     }
+
+    console.log("✅ Line updated successfully:", data);
 
     return { 
       success: true, 
@@ -1528,6 +1560,8 @@ export async function deleteLine(
   try {
     const { supabase } = await import('@/lib/supabase')
 
+    console.log("🚇 Deleting line:", lineId);
+
     // 関連する駅があるかチェック
     const { data: stations, error: stationsError } = await supabase
       .from('station_lines')
@@ -1535,12 +1569,15 @@ export async function deleteLine(
       .eq('line_id', lineId)
       .limit(1)
 
+    console.log("🚇 Related stations check:", { stations, stationsError });
+
     if (stationsError) {
       console.error('Error checking related stations:', stationsError)
       return { success: false, error: '関連データの確認に失敗しました' }
     }
 
     if (stations && stations.length > 0) {
+      console.log("🚇 Cannot delete: has related stations");
       return { 
         success: false, 
         error: 'この路線には駅が登録されているため削除できません' 
@@ -1552,10 +1589,14 @@ export async function deleteLine(
       .delete()
       .eq('id', lineId)
 
+    console.log("🚇 Delete response:", { error });
+
     if (error) {
       console.error('Error deleting line:', error)
       return { success: false, error: '路線の削除に失敗しました' }
     }
+
+    console.log("✅ Line deleted successfully");
 
     return { 
       success: true, 

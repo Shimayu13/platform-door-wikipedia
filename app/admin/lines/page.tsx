@@ -121,7 +121,16 @@ export default function LinesAdminPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user) return
+    if (!user) {
+      setMessage({ type: "error", text: "ログインが必要です" })
+      return
+    }
+
+    // フロントエンドでの権限チェック
+    if (!hasRole("編集者")) {
+      setMessage({ type: "error", text: "この操作には編集者権限が必要です" })
+      return
+    }
 
     setLoading(true)
     setMessage(null)
@@ -154,7 +163,16 @@ export default function LinesAdminPage() {
 
   const handleDelete = async (lineId: string) => {
     if (!confirm("この路線を削除しますか？関連する駅がある場合は削除できません。")) return
-    if (!user) return
+    if (!user) {
+      setMessage({ type: "error", text: "ログインが必要です" })
+      return
+    }
+
+    // フロントエンドでの権限チェック
+    if (!hasRole("編集者")) {
+      setMessage({ type: "error", text: "この操作には編集者権限が必要です" })
+      return
+    }
 
     setLoading(true)
     setMessage(null)
@@ -174,6 +192,41 @@ export default function LinesAdminPage() {
       setMessage({ type: "error", text: "予期しないエラーが発生しました" })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const checkUserProfile = async () => {
+    if (!user) {
+      console.log("❌ No user found");
+      return;
+    }
+    
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      
+      console.log("🔍 === LINES PAGE USER DIAGNOSIS ===");
+      console.log("1. Current user ID:", user.id);
+      console.log("2. User object:", user);
+      
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+        
+      console.log("3. Profile query result:");
+      console.log("   - profile:", profile);
+      console.log("   - error:", error);
+      
+      if (profile) {
+        console.log("4. User role:", profile.role);
+        console.log("5. Has editor/developer role:", ['編集者', '開発者'].includes(profile.role));
+      } else {
+        console.log("❌ No profile found");
+      }
+      
+    } catch (error) {
+      console.error("Error in checkUserProfile:", error);
     }
   }
 
@@ -231,10 +284,15 @@ export default function LinesAdminPage() {
               </div>
             </div>
             {!newLine && !editingLine && (
-              <Button onClick={startNew}>
-                <Plus className="h-4 w-4 mr-2" />
-                新規追加
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={startNew}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  新規追加
+                </Button>
+                <Button variant="outline" onClick={checkUserProfile}>
+                  🔍 診断実行
+                </Button>
+              </div>
             )}
           </div>
         </div>
