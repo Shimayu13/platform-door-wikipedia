@@ -39,21 +39,21 @@ export default function ContributePage() {
       // 詳細な駅情報を取得（路線情報含む）
       const { getStationDetails } = await import('@/lib/actions')
       const result = await getStationDetails(station.id)
-      
+
       if (result.success) {
         setEditingStation(result.data)
         setStep("station-edit")
       } else {
-        setMessage({ 
-          type: "error", 
-          text: "駅情報の取得に失敗しました" 
+        setMessage({
+          type: "error",
+          text: "駅情報の取得に失敗しました"
         })
       }
     } catch (error) {
       console.error("Error fetching station details:", error)
-      setMessage({ 
-        type: "error", 
-        text: "駅情報の取得中にエラーが発生しました" 
+      setMessage({
+        type: "error",
+        text: "駅情報の取得中にエラーが発生しました"
       })
     }
   }
@@ -63,13 +63,13 @@ export default function ContributePage() {
 
     try {
       const result = await deleteStation(station.id, user.id)
-      
+
       if (result.success) {
-        setMessage({ 
-          type: "success", 
-          text: result.message || `「${station.name}」を削除しました` 
+        setMessage({
+          type: "success",
+          text: result.message || `「${station.name}」を削除しました`
         })
-        
+
         // 削除された駅が選択されていた場合はクリア
         if (selectedStation?.id === station.id) {
           setSelectedStation(null)
@@ -77,28 +77,28 @@ export default function ContributePage() {
         if (editingStation?.id === station.id) {
           setEditingStation(null)
         }
-        
+
         // ステップを選択画面に戻す
         setStep("select")
       } else {
-        setMessage({ 
-          type: "error", 
-          text: result.error || "駅の削除に失敗しました" 
+        setMessage({
+          type: "error",
+          text: result.error || "駅の削除に失敗しました"
         })
       }
     } catch (error) {
       console.error("Error deleting station:", error)
-      setMessage({ 
-        type: "error", 
-        text: "予期しないエラーが発生しました" 
+      setMessage({
+        type: "error",
+        text: "予期しないエラーが発生しました"
       })
     }
   }
 
   const handleStationEditSuccess = (updatedStation: any) => {
-    setMessage({ 
-      type: "success", 
-      text: "駅情報を更新しました" 
+    setMessage({
+      type: "success",
+      text: "駅情報を更新しました"
     })
     setEditingStation(null)
     setStep("select")
@@ -152,6 +152,12 @@ export default function ContributePage() {
     )
   }
 
+  console.log("🏠 CONTRIBUTE PAGE STATE:")
+  console.log("- step:", step)
+  console.log("- selectedStation:", selectedStation)
+  console.log("- editingStation:", editingStation)
+  console.log("- user:", user)
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
@@ -199,9 +205,8 @@ export default function ContributePage() {
           <div className="flex items-center justify-center space-x-4 p-4 bg-white rounded-lg shadow-sm">
             <div className={`flex items-center space-x-2 ${step === "register" ? "text-blue-600" : "text-gray-400"}`}>
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step === "register" ? "bg-blue-600 text-white" : "bg-gray-200"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === "register" ? "bg-blue-600 text-white" : "bg-gray-200"
+                  }`}
               >
                 1
               </div>
@@ -210,9 +215,8 @@ export default function ContributePage() {
             <ArrowRight className="h-4 w-4 text-gray-400" />
             <div className={`flex items-center space-x-2 ${step === "select" ? "text-blue-600" : "text-gray-400"}`}>
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step === "select" ? "bg-blue-600 text-white" : "bg-gray-200"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === "select" ? "bg-blue-600 text-white" : "bg-gray-200"
+                  }`}
               >
                 2
               </div>
@@ -221,9 +225,8 @@ export default function ContributePage() {
             <ArrowRight className="h-4 w-4 text-gray-400" />
             <div className={`flex items-center space-x-2 ${step === "edit" ? "text-blue-600" : "text-gray-400"}`}>
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step === "edit" ? "bg-blue-600 text-white" : "bg-gray-200"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === "edit" ? "bg-blue-600 text-white" : "bg-gray-200"
+                  }`}
               >
                 3
               </div>
@@ -284,8 +287,8 @@ export default function ContributePage() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
-                <StationSelector 
-                  onStationSelect={handleStationSelect} 
+                <StationSelector
+                  onStationSelect={handleStationSelect}
                   selectedStation={selectedStation}
                   userRole={profile?.role}
                   userId={user?.id}
@@ -387,10 +390,10 @@ export default function ContributePage() {
                 ← 駅選択に戻る
               </Button>
             </div>
-            <PlatformDoorForm 
-              station={selectedStation} 
-              userId={user.id} 
-              canDelete={hasRole("編集者")} 
+            <PlatformDoorForm
+              station={selectedStation}
+              userId={user.id}
+              canDelete={hasRole("編集者")}
             />
           </div>
         )}
@@ -402,7 +405,7 @@ export default function ContributePage() {
                 ← 駅選択に戻る
               </Button>
             </div>
-            <StationForm 
+            <StationForm
               userId={user.id}
               mode="edit"
               stationData={editingStation}

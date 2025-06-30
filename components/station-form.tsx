@@ -78,6 +78,13 @@ export function StationForm({
   onSuccess,
   onCancel
 }: StationFormProps) {
+
+  console.log("🚂 STATION FORM COMPONENT RENDERED")
+  console.log("- mode:", mode)
+  console.log("- stationData:", stationData)
+  console.log("- userId:", userId)
+
+
   const [companies, setCompanies] = useState<RailwayCompany[]>([])
   const [allLines, setAllLines] = useState<Line[]>([])
   const [selectedLines, setSelectedLines] = useState<SelectedLine[]>([])
@@ -85,13 +92,30 @@ export function StationForm({
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null)
 
-  const [formData, setFormData] = useState({
-    name: "",
-    latitude: undefined as number | undefined,
-    longitude: undefined as number | undefined,
-    prefecture: "",
-    city: "",
-    address: "",
+  const [formData, setFormData] = useState(() => {
+    // 編集モードの場合は、stationDataから初期値を設定
+    if (mode === "edit" && stationData) {
+      console.log("🔧 Setting initial formData from stationData:", stationData)
+      return {
+        name: stationData.name,
+        latitude: stationData.latitude,
+        longitude: stationData.longitude,
+        prefecture: stationData.prefecture || "",
+        city: stationData.city || "",
+        address: stationData.address || "",
+      }
+    }
+
+    // 新規作成モードの場合は空の値
+    console.log("🔧 Setting initial formData as empty (create mode)")
+    return {
+      name: "",
+      latitude: undefined as number | undefined,
+      longitude: undefined as number | undefined,
+      prefecture: "",
+      city: "",
+      address: "",
+    }
   })
 
   const [lineSelection, setLineSelection] = useState({
@@ -103,44 +127,102 @@ export function StationForm({
     station_code: "",
   })
 
-  // 初期化
+  // stationDataの変更を監視して、formDataを更新するuseEffect
   useEffect(() => {
-    loadCompanies()
-    loadAllLines()
+    console.log("🔧 stationData useEffect triggered")
+    console.log("- mode:", mode)
+    console.log("- stationData:", stationData)
 
     if (mode === "edit" && stationData) {
-      initializeEditMode()
+      console.log("🔧 Updating formData due to stationData change")
+      const newFormData = {
+        name: stationData.name,
+        latitude: stationData.latitude,
+        longitude: stationData.longitude,
+        prefecture: stationData.prefecture || "",
+        city: stationData.city || "",
+        address: stationData.address || "",
+      }
+
+      console.log("🔧 New formData:", newFormData)
+      setFormData(newFormData)
+
+      // 路線情報も更新
+      if (stationData.station_lines && stationData.station_lines.length > 0) {
+        const existingLines: SelectedLine[] = stationData.station_lines.map(stationLine => ({
+          line_id: stationLine.line_id,
+          line: {
+            id: stationLine.line_id,
+            name: stationLine.lines?.name || "",
+            company_id: (stationLine.lines as any)?.company_id || "",
+            railway_companies: stationLine.lines?.railway_companies
+          } as Line,
+          station_code: stationLine.station_code || "",
+          existing_id: stationLine.id
+        }))
+
+        console.log("🔧 Updating selectedLines:", existingLines)
+        setSelectedLines(existingLines)
+      }
     }
-  }, [mode, stationData])
+  }, [mode, stationData]) // modeとstationDataの変更を監視
+
+  useEffect(() => {
+    console.log("📝 FORM DATA CHANGED:", formData)
+  }, [formData])
 
   const initializeEditMode = () => {
-    if (!stationData) return
+    console.log("=== STATION FORM: initializeEditMode called ===")
+    console.log("stationData:", stationData)
 
-    setFormData({
+    if (!stationData) {
+      console.log("No stationData provided")
+      return
+    }
+
+    // 基本情報をフォームに設定
+    const newFormData = {
       name: stationData.name,
       latitude: stationData.latitude,
       longitude: stationData.longitude,
       prefecture: stationData.prefecture || "",
       city: stationData.city || "",
       address: stationData.address || "",
-    })
+    }
+
+    console.log("📝 Setting form data to:", newFormData)
+
+    // setFormDataを呼び出す前の現在の状態をログ
+    console.log("📝 Current formData before setFormData:", formData)
+
+    setFormData(newFormData)
+
+    // setFormData呼び出し直後（ただし、非同期なので値はまだ更新されていない可能性があります）
+    console.log("📝 setFormData called with:", newFormData)
 
     // 既存の路線情報を selectedLines に設定
-    if (stationData.station_lines) {
-      const existingLines: SelectedLine[] = stationData.station_lines.map(stationLine => ({
-        line_id: stationLine.line_id,
-        line: {
-          id: stationLine.line_id,
-          name: stationLine.lines?.name || "",
-          company_id: "",
-          railway_companies: stationLine.lines?.railway_companies
-        } as Line,
-        station_code: stationLine.station_code || "",
-        existing_id: stationLine.id
-      }))
+    if (stationData.station_lines && stationData.station_lines.length > 0) {
+      console.log("🚇 Processing station lines:", stationData.station_lines)
 
+      const existingLines: SelectedLine[] = stationData.station_lines.map(stationLine => {
+        return {
+          line_id: stationLine.line_id,
+          line: {
+            id: stationLine.line_id,
+            name: stationLine.lines?.name || "",
+            company_id: (stationLine.lines as any)?.company_id || "",
+            railway_companies: stationLine.lines?.railway_companies
+          } as Line,
+          station_code: stationLine.station_code || "",
+          existing_id: stationLine.id
+        }
+      })
+
+      console.log("🚇 Setting selected lines:", existingLines)
       setSelectedLines(existingLines)
     }
+
+    console.log("=== STATION FORM: initializeEditMode completed ===")
   }
 
   const loadCompanies = async () => {
