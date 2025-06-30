@@ -12,7 +12,7 @@ function createAdminClient() {
     console.warn("SUPABASE_SERVICE_ROLE_KEY not found, falling back to regular client")
     return null
   }
-  
+
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     serviceRoleKey,
@@ -55,13 +55,13 @@ export async function createStation(data: StationInput, userId: string) {
   try {
     // デバッグ用ログ
     console.log("Creating station with data:", { ...data, userId })
-    
+
     // Admin client を作成（Service Role Key使用）
     const adminClient = createAdminClient()
     if (!adminClient) {
       return { success: false, error: "管理者権限が必要です。Service Role Keyを設定してください。" }
     }
-    
+
     // ユーザープロフィールの確認
     const { data: profile, error: profileError } = await adminClient
       .from("user_profiles")
@@ -100,7 +100,7 @@ export async function createStation(data: StationInput, userId: string) {
       city: data.city,
       address: data.address,
     })
-    
+
     const { data: station, error: stationError } = await adminClient
       .from("stations")
       .insert({
@@ -118,12 +118,12 @@ export async function createStation(data: StationInput, userId: string) {
       console.error("Error creating station:", stationError)
       return { success: false, error: `駅の作成に失敗しました: ${stationError.message}` }
     }
-    
+
     console.log("Successfully created station:", station)
 
     // 駅と路線の関係を作成（駅ナンバリング含む）
     console.log("Creating station_lines for lines:", data.lines)
-    
+
     const stationLineResults = []
     for (const lineData of data.lines) {
       console.log("Inserting station_line:", {
@@ -131,7 +131,7 @@ export async function createStation(data: StationInput, userId: string) {
         line_id: lineData.line_id,
         station_code: lineData.station_code,
       })
-      
+
       const { data: stationLineResult, error: stationLineError } = await adminClient
         .from("station_lines")
         .insert({
@@ -140,7 +140,7 @@ export async function createStation(data: StationInput, userId: string) {
           station_code: lineData.station_code,
         })
         .select()
-      
+
       if (stationLineError) {
         console.error("Error creating station_line:", stationLineError)
         // エラーがあっても他の路線は登録を続行
@@ -150,9 +150,9 @@ export async function createStation(data: StationInput, userId: string) {
         stationLineResults.push({ data: stationLineResult, lineData })
       }
     }
-    
+
     console.log("Station line results:", stationLineResults)
-    
+
     // エラーがあった路線をチェック
     const failedLines = stationLineResults.filter(result => result.error)
     if (failedLines.length > 0) {
@@ -963,9 +963,9 @@ export async function deleteStation(stationId: string, userId: string) {
 
     // 関連するホームドア情報がある場合は削除を拒否
     if (existing.platform_doors && existing.platform_doors.length > 0) {
-      return { 
-        success: false, 
-        error: "この駅にはホームドア情報が登録されているため削除できません。先にホームドア情報を削除してください。" 
+      return {
+        success: false,
+        error: "この駅にはホームドア情報が登録されているため削除できません。先にホームドア情報を削除してください。"
       }
     }
 
@@ -1022,7 +1022,7 @@ export async function getStationDetails(stationId: string) {
     if (process.env.NODE_ENV === "development") {
       console.log("Fetching station details for ID:", stationId)
     }
-    
+
     const { data, error } = await supabase
       .from("stations")
       .select(`
@@ -1219,9 +1219,9 @@ export async function removeLineFromStation(
       .eq("line_id", existing.line_id)
 
     if (relatedPlatforms && relatedPlatforms.length > 0) {
-      return { 
-        success: false, 
-        error: "この路線にはホームドア情報が登録されているため削除できません" 
+      return {
+        success: false,
+        error: "この路線にはホームドア情報が登録されているため削除できません"
       }
     }
 
@@ -1255,5 +1255,314 @@ export async function removeLineFromStation(
   } catch (error) {
     console.error("Error in removeLineFromStation:", error)
     return { success: false, error: "予期しないエラーが発生しました" }
+  }
+}
+// lib/actions.ts の鉄道会社・路線管理関数を以下に置き換えてください
+
+// ======================
+// 鉄道会社管理
+// ======================
+
+export interface RailwayCompanyInput {
+  name: string
+  type?: string
+  website_url?: string
+  description?: string
+}
+
+export interface RailwayCompanyUpdateInput {
+  name?: string
+  type?: string
+  website_url?: string
+  description?: string
+}
+
+// 鉄道会社作成
+export async function createRailwayCompany(
+  input: RailwayCompanyInput,
+  userId: string
+): Promise<{ success: boolean; data?: any; error?: string; message?: string }> {
+  try {
+    const { supabase } = await import('@/lib/supabase')
+
+    console.log("🔧 Creating railway company:", input);
+
+    const { data, error } = await supabase
+      .from('railway_companies')
+      .insert({
+        name: input.name,
+        type: input.type || 'JR', // デフォルト値を設定
+        website_url: input.website_url || null,
+        description: input.description || null,
+      })
+      .select()
+      .single()
+
+    console.log("🔧 Supabase response:", { data, error });
+
+    if (error) {
+      console.error('Error creating railway company:', error)
+      return { 
+        success: false, 
+        error: error.message.includes('duplicate') 
+          ? 'この名前の鉄道会社は既に存在します'
+          : '鉄道会社の作成に失敗しました'
+      }
+    }
+
+    console.log("✅ Railway company created successfully:", data);
+
+    return { 
+      success: true, 
+      data, 
+      message: `「${input.name}」を追加しました`
+    }
+  } catch (error) {
+    console.error('Error in createRailwayCompany:', error)
+    return { success: false, error: '予期しないエラーが発生しました' }
+  }
+}
+
+// 鉄道会社更新
+export async function updateRailwayCompany(
+  companyId: string,
+  input: RailwayCompanyUpdateInput,
+  userId: string
+): Promise<{ success: boolean; data?: any; error?: string; message?: string }> {
+  try {
+    const { supabase } = await import('@/lib/supabase')
+
+    const { data, error } = await supabase
+      .from('railway_companies')
+      .update({
+        ...input,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', companyId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating railway company:', error)
+      return { 
+        success: false, 
+        error: error.message.includes('duplicate')
+          ? 'この名前の鉄道会社は既に存在します'
+          : '鉄道会社の更新に失敗しました'
+      }
+    }
+
+    return { 
+      success: true, 
+      data, 
+      message: '鉄道会社を更新しました'
+    }
+  } catch (error) {
+    console.error('Error in updateRailwayCompany:', error)
+    return { success: false, error: '予期しないエラーが発生しました' }
+  }
+}
+
+// 鉄道会社削除
+export async function deleteRailwayCompany(
+  companyId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  try {
+    const { supabase } = await import('@/lib/supabase')
+
+    // 関連する路線があるかチェック
+    const { data: lines, error: linesError } = await supabase
+      .from('lines')
+      .select('id')
+      .eq('company_id', companyId)
+      .limit(1)
+
+    if (linesError) {
+      console.error('Error checking related lines:', linesError)
+      return { success: false, error: '関連データの確認に失敗しました' }
+    }
+
+    if (lines && lines.length > 0) {
+      return { 
+        success: false, 
+        error: 'この鉄道会社には路線が登録されているため削除できません' 
+      }
+    }
+
+    const { error } = await supabase
+      .from('railway_companies')
+      .delete()
+      .eq('id', companyId)
+
+    if (error) {
+      console.error('Error deleting railway company:', error)
+      return { success: false, error: '鉄道会社の削除に失敗しました' }
+    }
+
+    return { 
+      success: true, 
+      message: '鉄道会社を削除しました'
+    }
+  } catch (error) {
+    console.error('Error in deleteRailwayCompany:', error)
+    return { success: false, error: '予期しないエラーが発生しました' }
+  }
+}
+
+// ======================
+// 路線管理
+// ======================
+
+export interface LineInput {
+  name: string
+  company_id: string
+  color?: string
+  description?: string
+}
+
+export interface LineUpdateInput {
+  name?: string
+  company_id?: string
+  color?: string
+  description?: string
+}
+
+// 路線作成
+export async function createLine(
+  input: LineInput,
+  userId: string
+): Promise<{ success: boolean; data?: any; error?: string; message?: string }> {
+  try {
+    const { supabase } = await import('@/lib/supabase')
+
+    const { data, error } = await supabase
+      .from('lines')
+      .insert({
+        name: input.name,
+        company_id: input.company_id,
+        color: input.color || null,
+        description: input.description || null,
+      })
+      .select(`
+        *,
+        railway_companies (
+          id,
+          name
+        )
+      `)
+      .single()
+
+    if (error) {
+      console.error('Error creating line:', error)
+      return { 
+        success: false, 
+        error: error.message.includes('duplicate')
+          ? 'この名前の路線は既に存在します'
+          : '路線の作成に失敗しました'
+      }
+    }
+
+    return { 
+      success: true, 
+      data, 
+      message: `「${input.name}」を追加しました`
+    }
+  } catch (error) {
+    console.error('Error in createLine:', error)
+    return { success: false, error: '予期しないエラーが発生しました' }
+  }
+}
+
+// 路線更新
+export async function updateLine(
+  lineId: string,
+  input: LineUpdateInput,
+  userId: string
+): Promise<{ success: boolean; data?: any; error?: string; message?: string }> {
+  try {
+    const { supabase } = await import('@/lib/supabase')
+
+    const { data, error } = await supabase
+      .from('lines')
+      .update({
+        ...input,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', lineId)
+      .select(`
+        *,
+        railway_companies (
+          id,
+          name
+        )
+      `)
+      .single()
+
+    if (error) {
+      console.error('Error updating line:', error)
+      return { 
+        success: false, 
+        error: error.message.includes('duplicate')
+          ? 'この名前の路線は既に存在します'
+          : '路線の更新に失敗しました'
+      }
+    }
+
+    return { 
+      success: true, 
+      data, 
+      message: '路線を更新しました'
+    }
+  } catch (error) {
+    console.error('Error in updateLine:', error)
+    return { success: false, error: '予期しないエラーが発生しました' }
+  }
+}
+
+// 路線削除
+export async function deleteLine(
+  lineId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  try {
+    const { supabase } = await import('@/lib/supabase')
+
+    // 関連する駅があるかチェック
+    const { data: stations, error: stationsError } = await supabase
+      .from('station_lines')
+      .select('id')
+      .eq('line_id', lineId)
+      .limit(1)
+
+    if (stationsError) {
+      console.error('Error checking related stations:', stationsError)
+      return { success: false, error: '関連データの確認に失敗しました' }
+    }
+
+    if (stations && stations.length > 0) {
+      return { 
+        success: false, 
+        error: 'この路線には駅が登録されているため削除できません' 
+      }
+    }
+
+    const { error } = await supabase
+      .from('lines')
+      .delete()
+      .eq('id', lineId)
+
+    if (error) {
+      console.error('Error deleting line:', error)
+      return { success: false, error: '路線の削除に失敗しました' }
+    }
+
+    return { 
+      success: true, 
+      message: '路線を削除しました'
+    }
+  } catch (error) {
+    console.error('Error in deleteLine:', error)
+    return { success: false, error: '予期しないエラーが発生しました' }
   }
 }

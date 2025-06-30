@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Train, Users, Shield, AlertCircle, CheckCircle, Settings, FileText } from "lucide-react"
+import { Train, Users, Shield, AlertCircle, CheckCircle, Settings, FileText, Building2, MapPin } from "lucide-react"
 import { usePermissions } from "@/hooks/use-permissions"
 import { getAllUsers, changeUserRole, type UserProfile } from "@/lib/auth"
 import { ROLE_COLORS, ROLE_DESCRIPTIONS, type UserRole } from "@/lib/permissions"
@@ -151,12 +151,44 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
+                  {/* 基本管理機能 */}
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+                    コンテンツ管理
+                  </div>
                   <Button variant="ghost" className="w-full justify-start" asChild>
                     <Link href="/admin/news">
                       <FileText className="mr-2 h-4 w-4" />
                       ニュース管理
                     </Link>
                   </Button>
+
+                  {/* 鉄道関連管理 */}
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3 mt-6">
+                    鉄道情報管理
+                  </div>
+                  <Button variant="ghost" className="w-full justify-start" asChild>
+                    <Link href="/admin/companies">
+                      <Building2 className="mr-2 h-4 w-4" />
+                      鉄道会社管理
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start" asChild>
+                    <Link href="/admin/lines">
+                      <Train className="mr-2 h-4 w-4" />
+                      路線管理
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start" asChild>
+                    <Link href="/admin/stations">
+                      <MapPin className="mr-2 h-4 w-4" />
+                      駅管理
+                    </Link>
+                  </Button>
+
+                  {/* システム管理 */}
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3 mt-6">
+                    システム管理
+                  </div>
                   <Button variant="ghost" className="w-full justify-start" asChild>
                     <Link href="/admin/door-types">
                       <Settings className="mr-2 h-4 w-4" />
@@ -172,6 +204,7 @@ export default function AdminPage() {
                     権限設定
                   </Button>
                   <Button variant="ghost" className="w-full justify-start" disabled>
+                    <Settings className="mr-2 h-4 w-4" />
                     システム設定
                   </Button>
                 </div>

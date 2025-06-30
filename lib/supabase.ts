@@ -6,22 +6,29 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // データベースの型定義
+// 既存の RailwayCompany 型を拡張
 export interface RailwayCompany {
   id: string
   name: string
-  type: "JR" | "私鉄"
-  website_url?: string
+  website_url?: string | null
+  description?: string | null
   created_at: string
   updated_at: string
+  created_by?: string | null
+  updated_by?: string | null
 }
 
+// 既存の Line 型を拡張
 export interface Line {
   id: string
   name: string
   company_id: string
-  line_color?: string
+  color?: string | null
+  description?: string | null
   created_at: string
   updated_at: string
+  created_by?: string | null
+  updated_by?: string | null
   railway_companies?: RailwayCompany
 }
 
