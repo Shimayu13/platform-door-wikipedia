@@ -10,6 +10,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export interface RailwayCompany {
   id: string
   name: string
+  type?: string // 追加: 事業者タイプ（JR、私鉄など）
   website_url?: string | null
   description?: string | null
   created_at: string
@@ -24,6 +25,7 @@ export interface Line {
   name: string
   company_id: string
   color?: string | null
+  line_color?: string | null // 追加: 既存コードとの互換性のため
   description?: string | null
   created_at: string
   updated_at: string
@@ -53,6 +55,7 @@ export interface Station {
   prefecture: string
   city?: string
   address?: string
+  station_code?: string // 追加: 既存コードとの互換性のため
   created_at: string
   updated_at: string
   station_lines?: StationLine[] // 新しい多対多関係
@@ -207,7 +210,7 @@ export const getStations = async (filters?: {
 
     if (filters?.company && filters.company !== "all") {
       filteredData = filteredData.filter((station) =>
-        station.station_lines?.some((sl: any) => sl.lines?.railway_companies?.name === filters.company),
+        station.station_lines?.some((sl: StationLine) => sl.lines?.railway_companies?.name === filters.company),
       )
     }
 
@@ -223,7 +226,6 @@ export const getStations = async (filters?: {
     return []
   }
 }
-
 export const getStationById = async (id: string) => {
   try {
     const { data, error } = await supabase

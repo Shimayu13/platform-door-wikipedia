@@ -13,8 +13,10 @@ export interface User {
   id: string
   email: string
   user_metadata?: {
-    display_name?: string
-    avatar_url?: string
+    [key: string]: any
+  }
+  app_metadata?: {
+    [key: string]: any
   }
 }
 

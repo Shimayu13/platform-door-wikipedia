@@ -1,5 +1,4 @@
-// components/station-management.tsx - 新規作成
-"use client"
+// components/station-management.tsx の型定義修正部分
 
 import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,30 +30,40 @@ import {
     removeLineFromStation,
     type StationUpdateInput
 } from "@/lib/actions"
-import { getRailwayCompanies, getLines, getStations, type Station, type RailwayCompany, type Line } from "@/lib/supabase"
+import { getRailwayCompanies, getLines, getStations, type Station, type RailwayCompany, type Line, type StationLine } from "@/lib/supabase"
 
 interface StationManagementProps {
     userId: string
     userRole: string
 }
 
-interface ExtendedStation extends Station {
-    station_lines?: Array<{
-        id: string
-        line_id: string
-        station_code?: string
-        lines?: {
-            id: string
-            name: string
-            railway_companies?: {
-                name: string
-            }
-        }
-    }>
+// Station型を正しく拡張
+interface ExtendedStation extends Omit<Station, 'station_lines'> {
+    station_lines?: StationLine[] // 正しいStationLine型を使用
     platform_doors?: Array<{
         id: string
+        platform_number: string
         status: string
+        line_id: string
     }>
+}
+
+// その他の必要な型定義
+interface StationFilter {
+    search: string
+    company: string
+    prefecture: string
+    hasLines: boolean
+}
+
+interface EditingStation {
+    id: string
+    name: string
+    prefecture: string
+    city: string
+    address: string
+    latitude?: number
+    longitude?: number
 }
 
 const PREFECTURES = [
