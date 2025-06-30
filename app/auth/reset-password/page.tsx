@@ -12,7 +12,7 @@ import { confirmPasswordReset } from "@/lib/auth"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/auth"
 
-export default function ResetPasswordPage() {
+export default function ResetPasswordClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
