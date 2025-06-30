@@ -41,6 +41,16 @@ export interface PlatformDoorInput {
   notes?: string
 }
 
+// 駅情報更新の型定義
+export interface StationUpdateInput {
+  name?: string
+  latitude?: number
+  longitude?: number
+  prefecture?: string
+  city?: string
+  address?: string
+}
+
 export async function createStation(data: StationInput, userId: string) {
   try {
     // デバッグ用ログ
@@ -817,5 +827,433 @@ export async function getAllManufacturers(userRole: string) {
   } catch (error) {
     console.error("Unexpected error:", error)
     return { success: false, error: "予期しないエラーが発生しました", data: [] }
+  }
+}
+
+// 駅情報の更新
+export async function updateStation(
+  stationId: string,
+  data: StationUpdateInput,
+  userId: string
+) {
+  try {
+    // Admin client を作成
+    const adminClient = createAdminClient()
+    if (!adminClient) {
+      return { success: false, error: "管理者権限が必要です" }
+    }
+
+    // ユーザー権限チェック
+    const { data: profile, error: profileError } = await adminClient
+      .from('user_profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profileError || !profile) {
+      return { success: false, error: "ユーザー情報の取得に失敗しました" }
+    }
+
+    if (!['編集者', '開発者'].includes(profile.role)) {
+      return { success: false, error: "駅情報の編集権限がありません" }
+    }
+
+    // 既存データを取得
+    const { data: existing, error: fetchError } = await adminClient
+      .from("stations")
+      .select("*")
+      .eq("id", stationId)
+      .single()
+
+    if (fetchError || !existing) {
+      return { success: false, error: "更新対象の駅が見つかりません" }
+    }
+
+    // 更新処理
+    const { data: updated, error: updateError } = await adminClient
+      .from("stations")
+      .update({
+        name: data.name ?? existing.name,
+        latitude: data.latitude ?? existing.latitude,
+        longitude: data.longitude ?? existing.longitude,
+        prefecture: data.prefecture ?? existing.prefecture,
+        city: data.city ?? existing.city,
+        address: data.address ?? existing.address,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", stationId)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error("Error updating station:", updateError)
+      return { success: false, error: `更新に失敗しました: ${updateError.message}` }
+    }
+
+    // 更新履歴を記録
+    await adminClient.from("update_history").insert({
+      table_name: "stations",
+      record_id: stationId,
+      action: "UPDATE",
+      old_data: existing,
+      new_data: updated,
+      updated_by: userId,
+    })
+
+    // ページを再検証
+    revalidatePath("/stations")
+    revalidatePath(`/stations/${stationId}`)
+    revalidatePath("/contribute")
+
+    return {
+      success: true,
+      data: updated,
+      message: "駅情報を更新しました"
+    }
+  } catch (error) {
+    console.error("Error in updateStation:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
+  }
+}
+
+// 駅情報の削除
+export async function deleteStation(stationId: string, userId: string) {
+  try {
+    // Admin client を作成
+    const adminClient = createAdminClient()
+    if (!adminClient) {
+      return { success: false, error: "管理者権限が必要です" }
+    }
+
+    // ユーザー権限チェック（削除は編集者以上のみ）
+    const { data: profile, error: profileError } = await adminClient
+      .from('user_profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profileError || !profile) {
+      return { success: false, error: "ユーザー情報の取得に失敗しました" }
+    }
+
+    if (!['編集者', '開発者'].includes(profile.role)) {
+      return { success: false, error: "駅情報の削除権限がありません" }
+    }
+
+    // 削除前にデータを取得（履歴用）
+    const { data: existing, error: fetchError } = await adminClient
+      .from("stations")
+      .select(`
+        *,
+        station_lines (
+          id,
+          line_id,
+          station_code
+        ),
+        platform_doors (
+          id
+        )
+      `)
+      .eq("id", stationId)
+      .single()
+
+    if (fetchError || !existing) {
+      return { success: false, error: "削除対象の駅が見つかりません" }
+    }
+
+    // 関連するホームドア情報がある場合は削除を拒否
+    if (existing.platform_doors && existing.platform_doors.length > 0) {
+      return { 
+        success: false, 
+        error: "この駅にはホームドア情報が登録されているため削除できません。先にホームドア情報を削除してください。" 
+      }
+    }
+
+    // 関連する station_lines を先に削除
+    if (existing.station_lines && existing.station_lines.length > 0) {
+      const { error: stationLinesDeleteError } = await adminClient
+        .from("station_lines")
+        .delete()
+        .eq("station_id", stationId)
+
+      if (stationLinesDeleteError) {
+        console.error("Error deleting station lines:", stationLinesDeleteError)
+        return { success: false, error: "関連する路線情報の削除に失敗しました" }
+      }
+    }
+
+    // 駅を削除
+    const { error: deleteError } = await adminClient
+      .from("stations")
+      .delete()
+      .eq("id", stationId)
+
+    if (deleteError) {
+      console.error("Error deleting station:", deleteError)
+      return { success: false, error: `削除に失敗しました: ${deleteError.message}` }
+    }
+
+    // 削除履歴を記録
+    await adminClient.from("update_history").insert({
+      table_name: "stations",
+      record_id: stationId,
+      action: "DELETE",
+      old_data: existing,
+      updated_by: userId,
+    })
+
+    // ページを再検証
+    revalidatePath("/stations")
+    revalidatePath("/contribute")
+
+    return {
+      success: true,
+      message: "駅情報を削除しました"
+    }
+  } catch (error) {
+    console.error("Error in deleteStation:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
+  }
+}
+
+// 駅情報の詳細取得
+export async function getStationDetails(stationId: string) {
+  try {
+    if (process.env.NODE_ENV === "development") {
+      console.log("Fetching station details for ID:", stationId)
+    }
+    
+    const { data, error } = await supabase
+      .from("stations")
+      .select(`
+        *,
+        station_lines (
+          id,
+          line_id,
+          station_code,
+          lines (
+            id,
+            name,
+            company_id,
+            railway_companies (
+              id,
+              name
+            )
+          )
+        ),
+        platform_doors (
+          id,
+          line_id,
+          platform_number,
+          platform_name,
+          status,
+          direction,
+          installation_date,
+          operation_datetime,
+          door_type,
+          manufacturer
+        )
+      `)
+      .eq("id", stationId)
+      .single()
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("Raw station data from database:", data)
+      console.log("Database error:", error)
+    }
+
+    if (error) {
+      console.error("Error fetching station details:", error)
+      return { success: false, error: `駅情報の取得に失敗しました: ${error.message}` }
+    }
+
+    if (!data) {
+      console.error("No station data returned")
+      return { success: false, error: "駅データが見つかりません" }
+    }
+
+    // データの構造を確認（開発時のみ）
+    if (process.env.NODE_ENV === "development") {
+      console.log("Station lines data:", data.station_lines)
+      if (data.station_lines) {
+        data.station_lines.forEach((sl: any, index: number) => {
+          console.log(`Station line ${index}:`, sl)
+          console.log(`Line data:`, sl.lines)
+          console.log(`Railway company:`, sl.lines?.railway_companies)
+        })
+      }
+    }
+
+    return {
+      success: true,
+      data: data
+    }
+  } catch (error) {
+    console.error("Error in getStationDetails:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
+  }
+}
+
+// 駅の路線追加
+export async function addLineToStation(
+  stationId: string,
+  lineId: string,
+  stationCode: string | undefined,
+  userId: string
+) {
+  try {
+    const adminClient = createAdminClient()
+    if (!adminClient) {
+      return { success: false, error: "管理者権限が必要です" }
+    }
+
+    // 権限チェック
+    const { data: profile, error: profileError } = await adminClient
+      .from('user_profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (!profile || !['提供者', '編集者', '開発者'].includes(profile.role)) {
+      return { success: false, error: "この操作を行う権限がありません" }
+    }
+
+    // 重複チェック
+    const { data: existing, error: checkError } = await adminClient
+      .from("station_lines")
+      .select("id")
+      .eq("station_id", stationId)
+      .eq("line_id", lineId)
+      .single()
+
+    if (existing) {
+      return { success: false, error: "この路線は既に登録されています" }
+    }
+
+    // 路線を追加
+    const { data: created, error: createError } = await adminClient
+      .from("station_lines")
+      .insert({
+        station_id: stationId,
+        line_id: lineId,
+        station_code: stationCode,
+      })
+      .select(`
+        *,
+        lines (
+          id,
+          name,
+          railway_companies (
+            name
+          )
+        )
+      `)
+      .single()
+
+    if (createError) {
+      console.error("Error adding line to station:", createError)
+      return { success: false, error: "路線の追加に失敗しました" }
+    }
+
+    // 履歴を記録
+    await adminClient.from("update_history").insert({
+      table_name: "station_lines",
+      record_id: created.id,
+      action: "CREATE",
+      new_data: created,
+      updated_by: userId,
+    })
+
+    revalidatePath("/stations")
+    revalidatePath(`/stations/${stationId}`)
+
+    return {
+      success: true,
+      data: created,
+      message: "路線を追加しました"
+    }
+  } catch (error) {
+    console.error("Error in addLineToStation:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
+  }
+}
+
+// 駅の路線削除
+export async function removeLineFromStation(
+  stationLineId: string,
+  userId: string
+) {
+  try {
+    const adminClient = createAdminClient()
+    if (!adminClient) {
+      return { success: false, error: "管理者権限が必要です" }
+    }
+
+    // 権限チェック
+    const { data: profile, error: profileError } = await adminClient
+      .from('user_profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (!profile || !['編集者', '開発者'].includes(profile.role)) {
+      return { success: false, error: "路線削除権限がありません" }
+    }
+
+    // 削除前のデータを取得
+    const { data: existing, error: fetchError } = await adminClient
+      .from("station_lines")
+      .select("*")
+      .eq("id", stationLineId)
+      .single()
+
+    if (fetchError || !existing) {
+      return { success: false, error: "削除対象の路線が見つかりません" }
+    }
+
+    // 関連するホームドアがある場合は削除を拒否
+    const { data: relatedPlatforms, error: platformError } = await adminClient
+      .from("platform_doors")
+      .select("id")
+      .eq("station_id", existing.station_id)
+      .eq("line_id", existing.line_id)
+
+    if (relatedPlatforms && relatedPlatforms.length > 0) {
+      return { 
+        success: false, 
+        error: "この路線にはホームドア情報が登録されているため削除できません" 
+      }
+    }
+
+    // 路線を削除
+    const { error: deleteError } = await adminClient
+      .from("station_lines")
+      .delete()
+      .eq("id", stationLineId)
+
+    if (deleteError) {
+      console.error("Error removing line from station:", deleteError)
+      return { success: false, error: "路線の削除に失敗しました" }
+    }
+
+    // 履歴を記録
+    await adminClient.from("update_history").insert({
+      table_name: "station_lines",
+      record_id: stationLineId,
+      action: "DELETE",
+      old_data: existing,
+      updated_by: userId,
+    })
+
+    revalidatePath("/stations")
+    revalidatePath(`/stations/${existing.station_id}`)
+
+    return {
+      success: true,
+      message: "路線を削除しました"
+    }
+  } catch (error) {
+    console.error("Error in removeLineFromStation:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
   }
 }

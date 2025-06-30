@@ -1,7 +1,7 @@
+// components/station-form.tsx の拡張版（編集対応）
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,71 +11,73 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, AlertCircle, Save, MapPin, Plus, X, Edit, Check } from "lucide-react"
-import { createStation } from "@/lib/actions"
-import { getRailwayCompanies, getLines, type RailwayCompany, type Line, type StationInput } from "@/lib/supabase"
+import { 
+  createStation, 
+  updateStation, 
+  addLineToStation,
+  removeLineFromStation,
+  type StationUpdateInput 
+} from "@/lib/actions"
+import { 
+  getRailwayCompanies, 
+  getLines, 
+  type RailwayCompany, 
+  type Line, 
+  type StationInput 
+} from "@/lib/supabase"
 
 interface StationFormProps {
   userId: string
+  mode?: "create" | "edit"
+  stationData?: {
+    id: string
+    name: string
+    prefecture?: string
+    city?: string
+    address?: string
+    latitude?: number
+    longitude?: number
+    station_lines?: Array<{
+      id: string
+      line_id: string
+      station_code?: string
+      lines?: {
+        id: string
+        name: string
+        railway_companies?: {
+          name: string
+        }
+      }
+    }>
+  }
   onSuccess?: (station: any) => void
+  onCancel?: () => void
 }
 
 interface SelectedLine {
   line_id: string
   line: Line
   station_code?: string
+  existing_id?: string // 既存レコードの場合のID
 }
 
 const PREFECTURES = [
-  "北海道",
-  "青森県",
-  "岩手県",
-  "宮城県",
-  "秋田県",
-  "山形県",
-  "福島県",
-  "茨城県",
-  "栃木県",
-  "群馬県",
-  "埼玉県",
-  "千葉県",
-  "東京都",
-  "神奈川県",
-  "新潟県",
-  "富山県",
-  "石川県",
-  "福井県",
-  "山梨県",
-  "長野県",
-  "岐阜県",
-  "静岡県",
-  "愛知県",
-  "三重県",
-  "滋賀県",
-  "京都府",
-  "大阪府",
-  "兵庫県",
-  "奈良県",
-  "和歌山県",
-  "鳥取県",
-  "島根県",
-  "岡山県",
-  "広島県",
-  "山口県",
-  "徳島県",
-  "香川県",
-  "愛媛県",
-  "高知県",
-  "福岡県",
-  "佐賀県",
-  "長崎県",
-  "熊本県",
-  "大分県",
-  "宮崎県",
-  "鹿児島県",
-  "沖縄県",
+  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+  "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+  "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+  "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"
 ]
 
-export function StationForm({ userId, onSuccess }: StationFormProps) {
+export function StationForm({ 
+  userId, 
+  mode = "create", 
+  stationData, 
+  onSuccess, 
+  onCancel 
+}: StationFormProps) {
   const [companies, setCompanies] = useState<RailwayCompany[]>([])
   const [allLines, setAllLines] = useState<Line[]>([])
   const [selectedLines, setSelectedLines] = useState<SelectedLine[]>([])
@@ -101,19 +103,61 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
     station_code: "",
   })
 
+  // 初期化
   useEffect(() => {
     loadCompanies()
     loadAllLines()
-  }, [])
+    
+    if (mode === "edit" && stationData) {
+      initializeEditMode()
+    }
+  }, [mode, stationData])
+
+  const initializeEditMode = () => {
+    if (!stationData) return
+
+    setFormData({
+      name: stationData.name,
+      latitude: stationData.latitude,
+      longitude: stationData.longitude,
+      prefecture: stationData.prefecture || "",
+      city: stationData.city || "",
+      address: stationData.address || "",
+    })
+
+    // 既存の路線データを設定
+    if (stationData.station_lines) {
+      const existingLines: SelectedLine[] = stationData.station_lines.map(sl => ({
+        line_id: sl.line_id,
+        line: {
+          id: sl.line_id,
+          name: sl.lines?.name || "",
+          company_id: "",
+          railway_companies: sl.lines?.railway_companies
+        } as Line,
+        station_code: sl.station_code,
+        existing_id: sl.id
+      }))
+      setSelectedLines(existingLines)
+    }
+  }
 
   const loadCompanies = async () => {
-    const companiesData = await getRailwayCompanies()
-    setCompanies(companiesData)
+    try {
+      const companiesData = await getRailwayCompanies()
+      setCompanies(companiesData)
+    } catch (error) {
+      console.error("Error loading companies:", error)
+    }
   }
 
   const loadAllLines = async () => {
-    const linesData = await getLines()
-    setAllLines(linesData)
+    try {
+      const linesData = await getLines()
+      setAllLines(linesData)
+    } catch (error) {
+      console.error("Error loading lines:", error)
+    }
   }
 
   const handleAddLine = () => {
@@ -140,8 +184,32 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
     setMessage(null)
   }
 
-  const handleRemoveLine = (index: number) => {
-    setSelectedLines(selectedLines.filter((_, i) => i !== index))
+  const handleRemoveLine = async (index: number) => {
+    const line = selectedLines[index]
+    
+    if (mode === "edit" && line.existing_id) {
+      // 既存の路線を削除
+      if (!confirm("この路線を削除しますか？関連するホームドア情報がある場合は削除できません。")) return
+      
+      setLoading(true)
+      try {
+        const result = await removeLineFromStation(line.existing_id, userId)
+        if (result.success) {
+          setSelectedLines(selectedLines.filter((_, i) => i !== index))
+          setMessage({ type: "success", text: "路線を削除しました" })
+        } else {
+          setMessage({ type: "error", text: result.error || "路線の削除に失敗しました" })
+        }
+      } catch (error) {
+        console.error("Error removing line:", error)
+        setMessage({ type: "error", text: "予期しないエラーが発生しました" })
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      // 新規追加の路線を削除（UI上のみ）
+      setSelectedLines(selectedLines.filter((_, i) => i !== index))
+    }
     setEditingLineIndex(null)
   }
 
@@ -182,6 +250,12 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
     setLoading(true)
     setMessage(null)
 
+    if (!formData.name.trim()) {
+      setMessage({ type: "error", text: "駅名を入力してください" })
+      setLoading(false)
+      return
+    }
+
     if (selectedLines.length === 0) {
       setMessage({ type: "error", text: "少なくとも1つの路線を選択してください" })
       setLoading(false)
@@ -189,42 +263,80 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
     }
 
     try {
-      const stationInput: StationInput = {
-        name: formData.name,
-        lines: selectedLines.map((sl) => ({
-          line_id: sl.line_id,
-          station_code: sl.station_code,
-        })),
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        prefecture: formData.prefecture,
-        city: formData.city,
-        address: formData.address,
-      }
+      if (mode === "create") {
+        // 新規作成
+        const stationInput: StationInput = {
+          name: formData.name,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          prefecture: formData.prefecture,
+          city: formData.city,
+          address: formData.address,
+          lines: selectedLines.map(line => ({
+            line_id: line.line_id,
+            station_code: line.station_code,
+          })),
+        }
 
-      const result = await createStation(stationInput, userId)
+        const result = await createStation(stationInput, userId)
 
-      if (result.success) {
-        setMessage({ type: "success", text: "駅を登録しました" })
-
-        // フォームをリセット
-        setFormData({
-          name: "",
-          latitude: undefined,
-          longitude: undefined,
-          prefecture: "",
-          city: "",
-          address: "",
-        })
-        setSelectedLines([])
-        setLineSelection({ companyId: "", lineId: "" })
-        setLineDetails({ station_code: "" })
-
-        if (onSuccess) {
-          onSuccess(result.data)
+        if (result.success) {
+          setMessage({ type: "success", text: "駅を登録しました" })
+          // フォームをリセット
+          setFormData({
+            name: "",
+            latitude: undefined,
+            longitude: undefined,
+            prefecture: "",
+            city: "",
+            address: "",
+          })
+          setSelectedLines([])
+          onSuccess?.(result.data)
+        } else {
+          setMessage({ type: "error", text: result.error || "駅の登録に失敗しました" })
         }
       } else {
-        setMessage({ type: "error", text: result.error || "駅の登録に失敗しました" })
+        // 編集モード
+        if (!stationData?.id) {
+          setMessage({ type: "error", text: "駅IDが見つかりません" })
+          setLoading(false)
+          return
+        }
+
+        const updateInput: StationUpdateInput = {
+          name: formData.name,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          prefecture: formData.prefecture,
+          city: formData.city,
+          address: formData.address,
+        }
+
+        const result = await updateStation(stationData.id, updateInput, userId)
+
+        if (result.success) {
+          // 新しく追加された路線を処理
+          const newLines = selectedLines.filter(line => !line.existing_id)
+          
+          for (const line of newLines) {
+            const addResult = await addLineToStation(
+              stationData.id,
+              line.line_id,
+              line.station_code,
+              userId
+            )
+            
+            if (!addResult.success) {
+              console.error("Failed to add line:", addResult.error)
+            }
+          }
+
+          setMessage({ type: "success", text: "駅情報を更新しました" })
+          onSuccess?.(result.data)
+        } else {
+          setMessage({ type: "error", text: result.error || "駅の更新に失敗しました" })
+        }
       }
     } catch (error) {
       console.error("Error submitting form:", error)
@@ -237,12 +349,13 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center">
-          <MapPin className="mr-2 h-5 w-5" />
-          新しい駅を登録
+        <CardTitle className="flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-blue-600" />
+          {mode === "create" ? "新しい駅の登録" : "駅情報の編集"}
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* メッセージ */}
         {message && (
           <Alert className={`mb-6 ${message.type === "error" ? "border-red-200" : "border-green-200"}`}>
             {message.type === "error" ? (
@@ -269,6 +382,75 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
                 required
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="prefecture">都道府県</Label>
+              <Select
+                value={formData.prefecture}
+                onValueChange={(value) => setFormData({ ...formData, prefecture: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="都道府県を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PREFECTURES.map((pref) => (
+                    <SelectItem key={pref} value={pref}>
+                      {pref}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="city">市区町村</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                placeholder="新宿区"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">住所</Label>
+              <Input
+                id="address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="西新宿1-1-1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="latitude">緯度</Label>
+              <Input
+                id="latitude"
+                type="number"
+                step="any"
+                value={formData.latitude || ""}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  latitude: e.target.value ? parseFloat(e.target.value) : undefined 
+                })}
+                placeholder="35.6894"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="longitude">経度</Label>
+              <Input
+                id="longitude"
+                type="number"
+                step="any"
+                value={formData.longitude || ""}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  longitude: e.target.value ? parseFloat(e.target.value) : undefined 
+                })}
+                placeholder="139.7006"
+              />
+            </div>
           </div>
 
           {/* 路線選択と管理 */}
@@ -289,6 +471,9 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
                               {selectedLine.line.railway_companies?.name}
                             </Badge>
                             <span className="font-medium">{selectedLine.line.name}</span>
+                            {selectedLine.existing_id && (
+                              <Badge variant="outline" className="text-xs">既存</Badge>
+                            )}
                           </div>
                           
                           {editingLineIndex === index ? (
@@ -338,6 +523,7 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
                               variant="outline"
                               size="sm"
                               onClick={() => handleRemoveLine(index)}
+                              disabled={loading}
                             >
                               <X className="h-3 w-3" />
                             </Button>
@@ -389,101 +575,49 @@ export function StationForm({ userId, onSuccess }: StationFormProps) {
                   </Select>
                 </div>
 
-                {/* 路線詳細情報 */}
-                <div>
-                  <Label htmlFor="new-station-code" className="text-xs">駅ナンバリング</Label>
-                  <Input
-                    id="new-station-code"
-                    value={lineDetails.station_code}
-                    onChange={(e) => setLineDetails({ station_code: e.target.value })}
-                    placeholder="JY17"
-                    className="h-8"
-                  />
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="station_code" className="text-sm">
+                      駅ナンバリング（任意）
+                    </Label>
+                    <Input
+                      id="station_code"
+                      value={lineDetails.station_code}
+                      onChange={(e) => setLineDetails({ station_code: e.target.value })}
+                      placeholder="例: JY17"
+                    />
+                  </div>
 
-                <Button type="button" onClick={handleAddLine} disabled={!lineSelection.lineId} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  路線を追加
-                </Button>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      onClick={handleAddLine}
+                      disabled={!lineSelection.lineId}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      路線を追加
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 所在地情報 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="prefecture">都道府県 *</Label>
-              <Select
-                value={formData.prefecture}
-                onValueChange={(value) => setFormData({ ...formData, prefecture: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="都道府県を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PREFECTURES.map((prefecture) => (
-                    <SelectItem key={prefecture} value={prefecture}>
-                      {prefecture}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="city">市区町村</Label>
-              <Input
-                id="city"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                placeholder="新宿区"
-              />
-            </div>
+          {/* 送信ボタン */}
+          <div className="flex gap-3">
+            <Button type="submit" disabled={loading} className="flex-1">
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? "保存中..." : mode === "create" ? "駅を登録" : "変更を保存"}
+            </Button>
+            
+            {mode === "edit" && onCancel && (
+              <Button type="button" variant="outline" onClick={onCancel}>
+                <X className="h-4 w-4 mr-2" />
+                キャンセル
+              </Button>
+            )}
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="address">住所</Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              placeholder="東京都新宿区新宿3丁目"
-            />
-          </div>
-
-          {/* 位置情報 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="latitude">緯度</Label>
-              <Input
-                id="latitude"
-                type="number"
-                step="any"
-                value={formData.latitude || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, latitude: e.target.value ? Number(e.target.value) : undefined })
-                }
-                placeholder="35.6896"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="longitude">経度</Label>
-              <Input
-                id="longitude"
-                type="number"
-                step="any"
-                value={formData.longitude || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, longitude: e.target.value ? Number(e.target.value) : undefined })
-                }
-                placeholder="139.7006"
-              />
-            </div>
-          </div>
-
-          <Button type="submit" disabled={loading} className="w-full">
-            <Save className="h-4 w-4 mr-2" />
-            {loading ? "登録中..." : "駅を登録"}
-          </Button>
         </form>
       </CardContent>
     </Card>

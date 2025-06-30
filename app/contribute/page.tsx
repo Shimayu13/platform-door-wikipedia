@@ -1,23 +1,27 @@
+// app/contribute/page.tsx の更新版
 "use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Train, Users, Shield, CheckCircle, ArrowRight } from "lucide-react"
+import { Train, Users, Shield, CheckCircle, ArrowRight, AlertCircle, Edit } from "lucide-react"
 import { usePermissions } from "@/hooks/use-permissions"
 import { StationSelector } from "@/components/station-selector"
 import { PlatformDoorForm } from "@/components/platform-door-form"
+import { StationForm } from "@/components/station-form"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import type { Station } from "@/lib/supabase"
-import { StationForm } from "@/components/station-form"
+import { deleteStation, updateStation, type StationUpdateInput } from "@/lib/actions"
 
 export default function ContributePage() {
   const { user, profile, loading: permissionsLoading, canEditContent, hasRole } = usePermissions()
   const router = useRouter()
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
-  const [step, setStep] = useState<"register" | "select" | "edit">("register")
+  const [step, setStep] = useState<"register" | "select" | "edit" | "station-edit">("register")
+  const [editingStation, setEditingStation] = useState<Station | null>(null)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   useEffect(() => {
     if (!permissionsLoading && !canEditContent()) {
@@ -30,6 +34,81 @@ export default function ContributePage() {
     setStep("edit")
   }
 
+  const handleStationEdit = async (station: Station) => {
+    try {
+      // 詳細な駅情報を取得（路線情報含む）
+      const { getStationDetails } = await import('@/lib/actions')
+      const result = await getStationDetails(station.id)
+      
+      if (result.success) {
+        setEditingStation(result.data)
+        setStep("station-edit")
+      } else {
+        setMessage({ 
+          type: "error", 
+          text: "駅情報の取得に失敗しました" 
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching station details:", error)
+      setMessage({ 
+        type: "error", 
+        text: "駅情報の取得中にエラーが発生しました" 
+      })
+    }
+  }
+
+  const handleStationDelete = async (station: Station) => {
+    if (!user) return
+
+    try {
+      const result = await deleteStation(station.id, user.id)
+      
+      if (result.success) {
+        setMessage({ 
+          type: "success", 
+          text: result.message || `「${station.name}」を削除しました` 
+        })
+        
+        // 削除された駅が選択されていた場合はクリア
+        if (selectedStation?.id === station.id) {
+          setSelectedStation(null)
+        }
+        if (editingStation?.id === station.id) {
+          setEditingStation(null)
+        }
+        
+        // ステップを選択画面に戻す
+        setStep("select")
+      } else {
+        setMessage({ 
+          type: "error", 
+          text: result.error || "駅の削除に失敗しました" 
+        })
+      }
+    } catch (error) {
+      console.error("Error deleting station:", error)
+      setMessage({ 
+        type: "error", 
+        text: "予期しないエラーが発生しました" 
+      })
+    }
+  }
+
+  const handleStationEditSuccess = (updatedStation: any) => {
+    setMessage({ 
+      type: "success", 
+      text: "駅情報を更新しました" 
+    })
+    setEditingStation(null)
+    setStep("select")
+  }
+
+  const handleStationEditCancel = () => {
+    setEditingStation(null)
+    setStep("select")
+  }
+
   const handleBackToSelect = () => {
     setSelectedStation(null)
     setStep("select")
@@ -37,7 +116,12 @@ export default function ContributePage() {
 
   const handleBackToRegister = () => {
     setSelectedStation(null)
+    setEditingStation(null)
     setStep("register")
+  }
+
+  const clearMessage = () => {
+    setMessage(null)
   }
 
   if (permissionsLoading) {
@@ -56,17 +140,12 @@ export default function ContributePage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
-            <Shield className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">権限が必要です</h2>
-            <p className="text-gray-600 mb-4">この機能は提供者以上のロールが必要です</p>
-            <div className="space-y-2">
-              <Button asChild>
-                <Link href="/auth">ログイン</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/">ホームに戻る</Link>
-              </Button>
-            </div>
+            <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">ログインが必要です</h2>
+            <p className="text-gray-600 mb-4">この機能を利用するにはログインしてください</p>
+            <Button asChild>
+              <Link href="/auth">ログイン</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -80,18 +159,12 @@ export default function ContributePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
-              <Train className="h-8 w-8 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">ホームドア情報局</h1>
+              <Users className="h-8 w-8 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">情報提供</h1>
             </div>
             <nav className="flex space-x-4">
               <Button variant="ghost" asChild>
                 <Link href="/">ホーム</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/stations">駅検索</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/companies">鉄道会社</Link>
               </Button>
               <Button variant="ghost" asChild>
                 <Link href="/profile">プロフィール</Link>
@@ -102,28 +175,28 @@ export default function ContributePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ページヘッダー */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-2 mb-4">
-            <Users className="h-6 w-6 text-blue-600" />
-            <h2 className="text-3xl font-bold text-gray-900">情報提供</h2>
-          </div>
-          <p className="text-gray-600">ホームドア設置状況の情報を入力・更新できます</p>
-        </div>
-
-        {/* ユーザー情報 */}
-        {profile && (
-          <Alert className="mb-6 border-blue-200">
-            <CheckCircle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-700">
-              <strong>{profile.display_name}</strong> さん（{profile.role}）としてログイン中
+        {/* 全体メッセージ */}
+        {message && (
+          <Alert className={`mb-6 ${message.type === "error" ? "border-red-200" : "border-green-200"}`}>
+            {message.type === "error" ? (
+              <AlertCircle className="h-4 w-4 text-red-600" />
+            ) : (
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            )}
+            <AlertDescription className={message.type === "error" ? "text-red-700" : "text-green-700"}>
+              {message.text}
             </AlertDescription>
           </Alert>
         )}
 
-        {/* ステップインジケーター */}
         <div className="mb-8">
-          <div className="flex items-center space-x-4">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">情報提供</h2>
+          <p className="text-gray-600">ホームドア設置状況の情報を入力・更新できます</p>
+        </div>
+
+        {/* プロセスインジケーター */}
+        <div className="mb-8">
+          <div className="flex items-center justify-center space-x-4 p-4 bg-white rounded-lg shadow-sm">
             <div className={`flex items-center space-x-2 ${step === "register" ? "text-blue-600" : "text-gray-400"}`}>
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
@@ -196,14 +269,30 @@ export default function ContributePage() {
 
         {step === "select" && (
           <div>
-            <div className="mb-4">
+            <div className="mb-4 flex gap-2">
               <Button variant="outline" onClick={handleBackToRegister}>
                 ← 駅登録に戻る
               </Button>
+              {hasRole("編集者") && (
+                <Alert className="flex-1 border-blue-200 bg-blue-50">
+                  <Edit className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-700">
+                    編集者権限により、駅情報の編集・削除が可能です
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
-                <StationSelector onStationSelect={handleStationSelect} selectedStation={selectedStation} />
+                <StationSelector 
+                  onStationSelect={handleStationSelect} 
+                  selectedStation={selectedStation}
+                  userRole={profile?.role}
+                  userId={user?.id}
+                  onStationEdit={hasRole("編集者") ? handleStationEdit : undefined}
+                  onStationDelete={hasRole("編集者") ? handleStationDelete : undefined}
+                  showManagementButtons={hasRole("編集者")}
+                />
               </div>
               <div className="space-y-6">
                 {/* 使い方ガイド */}
@@ -244,6 +333,31 @@ export default function ContributePage() {
                   </CardContent>
                 </Card>
 
+                {/* 編集者向けガイド */}
+                {hasRole("編集者") && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-green-600">編集者機能</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span>駅情報の編集・削除</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span>路線の追加・削除</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span>ホームドア情報の削除</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* 注意事項 */}
                 <Card>
                   <CardHeader>
@@ -255,6 +369,9 @@ export default function ContributePage() {
                       <p>• 不明な項目は空欄でも構いません</p>
                       <p>• 設置日は確実な情報のみ入力してください</p>
                       <p>• 備考欄には追加の詳細情報を記載できます</p>
+                      {hasRole("編集者") && (
+                        <p className="text-orange-600">• 削除操作は取り消せません。慎重に行ってください</p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -270,7 +387,28 @@ export default function ContributePage() {
                 ← 駅選択に戻る
               </Button>
             </div>
-            <PlatformDoorForm station={selectedStation} userId={user.id} canDelete={hasRole("編集者")} />
+            <PlatformDoorForm 
+              station={selectedStation} 
+              userId={user.id} 
+              canDelete={hasRole("編集者")} 
+            />
+          </div>
+        )}
+
+        {step === "station-edit" && editingStation && user && (
+          <div>
+            <div className="mb-4">
+              <Button variant="outline" onClick={handleStationEditCancel}>
+                ← 駅選択に戻る
+              </Button>
+            </div>
+            <StationForm 
+              userId={user.id}
+              mode="edit"
+              stationData={editingStation}
+              onSuccess={handleStationEditSuccess}
+              onCancel={handleStationEditCancel}
+            />
           </div>
         )}
       </main>
