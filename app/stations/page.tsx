@@ -41,11 +41,11 @@ const getStatusBadge = (status: string) => {
 export default function StationsPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  
+
   const [stations, setStations] = useState<Station[]>([])
   const [companies, setCompanies] = useState<RailwayCompany[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   const search = searchParams.get("search") || ""
   const company = searchParams.get("company") || "all"
   const prefecture = searchParams.get("prefecture") || "all"
@@ -116,10 +116,10 @@ export default function StationsPage() {
               <div className="lg:col-span-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input 
-                    placeholder="駅名で検索..." 
-                    value={search} 
-                    className="pl-10" 
+                  <Input
+                    placeholder="駅名で検索..."
+                    value={search}
+                    className="pl-10"
                     onChange={(e) => handleSearchChange(e.target.value)}
                   />
                 </div>
@@ -137,17 +137,62 @@ export default function StationsPage() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={prefecture} onValueChange={(value) => handleFilterChange("prefecture", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="都道府県" />
-                </SelectTrigger>
-                <SelectContent>
+                </SelectTrigger><SelectContent>
                   <SelectItem value="all">すべて</SelectItem>
-                  {/* 都道府県のリストを追加する必要があります */}
+                  <SelectItem value="北海道">北海道</SelectItem>
+                  <SelectItem value="青森県">青森県</SelectItem>
+                  <SelectItem value="岩手県">岩手県</SelectItem>
+                  <SelectItem value="宮城県">宮城県</SelectItem>
+                  <SelectItem value="秋田県">秋田県</SelectItem>
+                  <SelectItem value="山形県">山形県</SelectItem>
+                  <SelectItem value="福島県">福島県</SelectItem>
+                  <SelectItem value="茨城県">茨城県</SelectItem>
+                  <SelectItem value="栃木県">栃木県</SelectItem>
+                  <SelectItem value="群馬県">群馬県</SelectItem>
+                  <SelectItem value="埼玉県">埼玉県</SelectItem>
+                  <SelectItem value="千葉県">千葉県</SelectItem>
+                  <SelectItem value="東京都">東京都</SelectItem>
+                  <SelectItem value="神奈川県">神奈川県</SelectItem>
+                  <SelectItem value="新潟県">新潟県</SelectItem>
+                  <SelectItem value="富山県">富山県</SelectItem>
+                  <SelectItem value="石川県">石川県</SelectItem>
+                  <SelectItem value="福井県">福井県</SelectItem>
+                  <SelectItem value="山梨県">山梨県</SelectItem>
+                  <SelectItem value="長野県">長野県</SelectItem>
+                  <SelectItem value="岐阜県">岐阜県</SelectItem>
+                  <SelectItem value="静岡県">静岡県</SelectItem>
+                  <SelectItem value="愛知県">愛知県</SelectItem>
+                  <SelectItem value="三重県">三重県</SelectItem>
+                  <SelectItem value="滋賀県">滋賀県</SelectItem>
+                  <SelectItem value="京都府">京都府</SelectItem>
+                  <SelectItem value="大阪府">大阪府</SelectItem>
+                  <SelectItem value="兵庫県">兵庫県</SelectItem>
+                  <SelectItem value="奈良県">奈良県</SelectItem>
+                  <SelectItem value="和歌山県">和歌山県</SelectItem>
+                  <SelectItem value="鳥取県">鳥取県</SelectItem>
+                  <SelectItem value="島根県">島根県</SelectItem>
+                  <SelectItem value="岡山県">岡山県</SelectItem>
+                  <SelectItem value="広島県">広島県</SelectItem>
+                  <SelectItem value="山口県">山口県</SelectItem>
+                  <SelectItem value="徳島県">徳島県</SelectItem>
+                  <SelectItem value="香川県">香川県</SelectItem>
+                  <SelectItem value="愛媛県">愛媛県</SelectItem>
+                  <SelectItem value="高知県">高知県</SelectItem>
+                  <SelectItem value="福岡県">福岡県</SelectItem>
+                  <SelectItem value="佐賀県">佐賀県</SelectItem>
+                  <SelectItem value="長崎県">長崎県</SelectItem>
+                  <SelectItem value="熊本県">熊本県</SelectItem>
+                  <SelectItem value="大分県">大分県</SelectItem>
+                  <SelectItem value="宮崎県">宮崎県</SelectItem>
+                  <SelectItem value="鹿児島県">鹿児島県</SelectItem>
+                  <SelectItem value="沖縄県">沖縄県</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               <Select value={status} onValueChange={(value) => handleFilterChange("status", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="設置状況" />
@@ -185,7 +230,7 @@ export default function StationsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {stations.map((station) => {
               const platformDoors = station.platform_doors || []
-              const completedDoors = platformDoors.filter(door => door.status === "設置済み").length
+              const completedDoors = platformDoors.filter(door => door.status === "稼働").length
               const totalDoors = platformDoors.length
               const completionRate = totalDoors > 0 ? Math.round((completedDoors / totalDoors) * 100) : 0
 
@@ -212,7 +257,7 @@ export default function StationsPage() {
                         <span className="text-sm text-gray-600">ホームドア数</span>
                         <span className="font-medium">{completedDoors}/{totalDoors}</span>
                       </div>
-                      
+
                       {platformDoors.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {platformDoors.slice(0, 3).map((door, index) => (
@@ -226,7 +271,7 @@ export default function StationsPage() {
                           )}
                         </div>
                       )}
-                      
+
                       <Button asChild className="w-full">
                         <Link href={`/stations/${station.id}`}>詳細を見る</Link>
                       </Button>

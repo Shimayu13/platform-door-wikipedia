@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { PlatformDoor } from "@/lib/supabase"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -38,14 +39,8 @@ interface StationManagementProps {
 }
 
 // Station型を正しく拡張
-interface ExtendedStation extends Omit<Station, 'station_lines'> {
-    station_lines?: StationLine[] // 正しいStationLine型を使用
-    platform_doors?: Array<{
-        id: string
-        platform_number: string
-        status: string
-        line_id: string
-    }>
+interface ExtendedStation extends Station {
+    // Stationを直接継承し、必要に応じて追加プロパティのみ定義
 }
 
 // その他の必要な型定義
@@ -82,7 +77,7 @@ export default function StationManagement({ userId, userRole }: StationManagemen
     const [lines, setLines] = useState<Line[]>([])
     const [loading, setLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
-    const [selectedPrefecture, setSelectedPrefecture] = useState("")
+    const [selectedPrefecture, setSelectedPrefecture] = useState("all")
     const [editingStation, setEditingStation] = useState<string | null>(null)
     const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null)
     const [showAddLineDialog, setShowAddLineDialog] = useState<string | null>(null)
@@ -141,7 +136,7 @@ export default function StationManagement({ userId, userRole }: StationManagemen
     // フィルタリング
     const filteredStations = stations.filter(station => {
         const matchesSearch = station.name.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesPrefecture = !selectedPrefecture || station.prefecture === selectedPrefecture
+        const matchesPrefecture = !selectedPrefecture || selectedPrefecture === "all" || station.prefecture === selectedPrefecture
         return matchesSearch && matchesPrefecture
     })
 
@@ -330,7 +325,7 @@ export default function StationManagement({ userId, userRole }: StationManagemen
                                     <SelectValue placeholder="都道府県を選択" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">すべて</SelectItem>
+                                    <SelectItem value="all">すべて</SelectItem>
                                     {PREFECTURES.map((pref) => (
                                         <SelectItem key={pref} value={pref}>
                                             {pref}

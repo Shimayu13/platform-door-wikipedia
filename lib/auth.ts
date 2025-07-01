@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { useEffect, useState } from "react"
 import type { UserRole } from "./permissions"
+import { User } from '@supabase/auth-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -48,7 +49,7 @@ export function useAuth() {
       console.log('Session user:', session?.user);
       // === ここまで ===
       
-      setUser(session?.user || null)
+      setUser(session?.user ?? null)
       setLoading(false)
     }
 
@@ -58,11 +59,11 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user || null)
+      setUser(session?.user ?? null)
       setLoading(false)
 
       // ユーザーがサインアップした場合、プロフィールを作成
-      if (event === "SIGNED_UP" && session?.user) {
+      if (event === "SIGNED_IN" && session?.user) {
         await createUserProfile(session.user)
       }
     })

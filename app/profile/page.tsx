@@ -15,13 +15,13 @@ import { getOrCreateUserProfile, updateUserProfile, signOut, type UserProfile } 
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ROLE_DESCRIPTIONS, ROLE_COLORS, type UserRole } from "@/lib/permissions"
-import { 
-  Train, 
-  User, 
-  Mail, 
-  Calendar, 
-  Shield, 
-  CheckCircle, 
+import {
+  Train,
+  User,
+  Mail,
+  Calendar,
+  Shield,
+  CheckCircle,
   AlertCircle,
   Save,
   Lock,     // ✅ 追加
@@ -270,7 +270,7 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
 
-                        {/* セキュリティ情報 */}
+            {/* セキュリティ情報 */}
             <div className="lg:col-span-1">
               <Card>
                 <CardHeader>
@@ -294,7 +294,7 @@ export default function ProfilePage() {
                         </Link>
                       </Button>
                     </div>
-                    
+
                     <div className="p-3 bg-blue-50 rounded-lg">
                       <h4 className="font-medium text-blue-900 mb-1">セキュリティのヒント</h4>
                       <ul className="text-sm text-blue-700 space-y-1">
@@ -326,8 +326,8 @@ export default function ProfilePage() {
                     <p className="text-xs text-gray-500">
                       {ROLE_DESCRIPTIONS[profile?.role || "閲覧者"]}
                     </p>
-                    
-                    {profile?.role === "開発者" && (
+
+                    {(profile?.role === "編集者" || profile?.role === "開発者") && (
                       <div className="pt-3 border-t">
                         <Button variant="outline" size="sm" asChild className="w-full">
                           <Link href="/admin">

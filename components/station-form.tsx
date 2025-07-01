@@ -119,9 +119,9 @@ export function StationForm({
   })
 
   const [lineSelection, setLineSelection] = useState({
-    companyId: "",
-    lineId: "",
-  })
+    companyId: "",  // これは空でも大丈夫（placeholder用）
+    lineId: "",     // これも空でも大丈夫（placeholder用）
+})
 
   const [lineDetails, setLineDetails] = useState({
     station_code: "",
@@ -488,8 +488,11 @@ export function StationForm({
             <div>
               <Label htmlFor="prefecture">都道府県 *</Label>
               <Select
-                value={formData.prefecture}
-                onValueChange={(value) => setFormData({ ...formData, prefecture: value })}
+                value={lineSelection.companyId}
+                onValueChange={(value) => {
+                  if (value === "") return;  // 空文字チェックを追加
+                  setLineSelection({ companyId: value, lineId: "" });
+                }}
                 disabled={loading}
               >
                 <SelectTrigger>
@@ -534,9 +537,9 @@ export function StationForm({
                 type="number"
                 step="any"
                 value={formData.latitude ?? ""}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  latitude: e.target.value ? parseFloat(e.target.value) : undefined 
+                onChange={(e) => setFormData({
+                  ...formData,
+                  latitude: e.target.value ? parseFloat(e.target.value) : undefined
                 })}
                 placeholder="35.681236"
                 disabled={loading}
@@ -550,9 +553,9 @@ export function StationForm({
                 type="number"
                 step="any"
                 value={formData.longitude ?? ""}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  longitude: e.target.value ? parseFloat(e.target.value) : undefined 
+                onChange={(e) => setFormData({
+                  ...formData,
+                  longitude: e.target.value ? parseFloat(e.target.value) : undefined
                 })}
                 placeholder="139.767125"
                 disabled={loading}
@@ -593,7 +596,7 @@ export function StationForm({
                           )}
                         </div>
                       </div>
-                      
+
                       {editingLineIndex === index ? (
                         <div className="flex items-center space-x-2">
                           <Input
@@ -720,8 +723,8 @@ export function StationForm({
 
           {/* 送信ボタン */}
           <div className="flex gap-2">
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading || (mode === "create" && selectedLines.length === 0)}
             >
               <Save className="h-4 w-4 mr-2" />
