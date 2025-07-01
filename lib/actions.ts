@@ -1094,14 +1094,14 @@ export async function getStationDetails(stationId: string) {
   }
 }
 
-// 駅の路線追加
+// 駅の路線追加（修正版）
 export async function addLineToStation(
-  stationId: string,
-  lineId: string,
-  stationCode: string | undefined,
+  data: { station_id: string; line_id: string; station_code?: string },
   userId: string
 ) {
   try {
+    const { station_id: stationId, line_id: lineId, station_code: stationCode } = data
+    
     const adminClient = createAdminClient()
     if (!adminClient) {
       return { success: false, error: "管理者権限が必要です" }

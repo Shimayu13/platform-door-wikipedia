@@ -215,7 +215,7 @@ export default function StationManagement({ userId, userRole }: StationManagemen
         }
     }
 
-    // 路線追加処理
+    // 路線追加処理（修正版）
     const handleAddLine = async (stationId: string) => {
         if (!lineFormData.lineId) {
             setMessage({ type: "error", text: "路線を選択してください" })
@@ -227,9 +227,11 @@ export default function StationManagement({ userId, userRole }: StationManagemen
 
         try {
             const result = await addLineToStation(
-                stationId,
-                lineFormData.lineId,
-                lineFormData.stationCode || undefined,
+                {
+                    station_id: stationId,
+                    line_id: lineFormData.lineId,
+                    station_code: lineFormData.stationCode || undefined,
+                },
                 userId
             )
 
