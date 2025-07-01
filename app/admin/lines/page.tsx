@@ -1,4 +1,4 @@
-// app/admin/lines/page.tsx - 完全版
+// app/admin/lines/page.tsx - データベース統合修正版
 "use client"
 
 import { useState, useEffect } from "react"
@@ -23,26 +23,17 @@ import {
 import Link from "next/link"
 import { usePermissions } from "@/hooks/use-permissions"
 import { LineManagementAccess } from "@/components/access-control"
+import { getRailwayCompanies, getLines, type Line, type RailwayCompany } from "@/lib/supabase"
+import { deleteLine } from "@/lib/actions"
 
-interface Line {
-    id: string
-    name: string
-    company_name: string
-    company_id: string
-    stations_count: number
-    created_at: string
-    updated_at: string
-}
-
-interface RailwayCompany {
-    id: string
-    name: string
-    type: string
+interface LineWithCompany extends Line {
+    railway_companies?: RailwayCompany
+    stations_count?: number
 }
 
 export default function LineAdminPage() {
     const { user, profile } = usePermissions()
-    const [lines, setLines] = useState<Line[]>([])
+    const [lines, setLines] = useState<LineWithCompany[]>([])
     const [companies, setCompanies] = useState<RailwayCompany[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
@@ -57,59 +48,50 @@ export default function LineAdminPage() {
     const fetchData = async () => {
         try {
             setLoading(true)
-            // ここで路線と鉄道会社のデータを取得
-            // 現在はモックデータを使用
-            const mockCompanies: RailwayCompany[] = [
-                { id: "1", name: "JR東日本", type: "JR" },
-                { id: "2", name: "東京メトロ", type: "地下鉄" },
-                { id: "3", name: "東急電鉄", type: "私鉄" },
-                { id: "4", name: "小田急電鉄", type: "私鉄" }
-            ]
+            
+            // 実際のデータベースからデータを取得
+            const [linesData, companiesData] = await Promise.all([
+                getLines(),
+                getRailwayCompanies()
+            ])
 
-            const mockLines: Line[] = [
-                {
-                    id: "1",
-                    name: "山手線",
-                    company_name: "JR東日本",
-                    company_id: "1",
-                    stations_count: 30,
-                    created_at: "2024-01-01T00:00:00Z",
-                    updated_at: "2024-01-01T00:00:00Z"
-                },
-                {
-                    id: "2",
-                    name: "中央線",
-                    company_name: "JR東日本",
-                    company_id: "1",
-                    stations_count: 45,
-                    created_at: "2024-01-01T00:00:00Z",
-                    updated_at: "2024-01-01T00:00:00Z"
-                },
-                {
-                    id: "3",
-                    name: "銀座線",
-                    company_name: "東京メトロ",
-                    company_id: "2",
-                    stations_count: 19,
-                    created_at: "2024-01-01T00:00:00Z",
-                    updated_at: "2024-01-01T00:00:00Z"
-                },
-                {
-                    id: "4",
-                    name: "東横線",
-                    company_name: "東急電鉄",
-                    company_id: "3",
-                    stations_count: 21,
-                    created_at: "2024-01-01T00:00:00Z",
-                    updated_at: "2024-01-01T00:00:00Z"
-                }
-            ]
+            console.log("路線データ:", linesData)
+            console.log("鉄道会社データ:", companiesData)
 
-            setCompanies(mockCompanies)
-            setLines(mockLines)
+            // 路線データに駅数を追加（必要に応じて）
+            const linesWithStationCount = await Promise.all(
+                linesData.map(async (line) => {
+                    try {
+                        // 各路線の駅数をカウント
+                        const { supabase } = await import('@/lib/supabase')
+                        const { count } = await supabase
+                            .from('station_lines')
+                            .select('*', { count: 'exact' })
+                            .eq('line_id', line.id)
+
+                        return {
+                            ...line,
+                            stations_count: count || 0
+                        }
+                    } catch (error) {
+                        console.error(`Error counting stations for line ${line.id}:`, error)
+                        return {
+                            ...line,
+                            stations_count: 0
+                        }
+                    }
+                })
+            )
+
+            setLines(linesWithStationCount)
+            setCompanies(companiesData)
+            
         } catch (error) {
-            console.error("Error fetching data:", error)
-            setMessage({ type: "error", text: "データの取得に失敗しました" })
+            console.error("データの取得エラー:", error)
+            setMessage({ 
+                type: "error", 
+                text: "データの取得に失敗しました。ページをリロードして再試行してください。" 
+            })
         } finally {
             setLoading(false)
         }
@@ -121,25 +103,33 @@ export default function LineAdminPage() {
             return
         }
 
+        if (!user) {
+            setMessage({ type: "error", text: "ログインが必要です" })
+            return
+        }
+
         try {
             setMessage(null)
-            // ここで削除の実装
-            console.log(`Deleting line ${lineId}`)
+            const result = await deleteLine(lineId, user.id)
             
-            // ローカル状態を更新
-            setLines(prev => prev.filter(line => line.id !== lineId))
-            
-            setMessage({ type: "success", text: `路線「${lineName}」を削除しました` })
+            if (result.success) {
+                // ローカル状態を更新
+                setLines(prev => prev.filter(line => line.id !== lineId))
+                setMessage({ type: "success", text: result.message || `路線「${lineName}」を削除しました` })
+            } else {
+                setMessage({ type: "error", text: result.error || "路線の削除に失敗しました" })
+            }
         } catch (error) {
-            console.error("Error deleting line:", error)
+            console.error("路線削除エラー:", error)
             setMessage({ type: "error", text: "路線の削除に失敗しました" })
         }
     }
 
     // フィルタリング処理
     const filteredLines = lines.filter(line => {
+        const companyName = line.railway_companies?.name || ""
         const matchesSearch = line.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            line.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+                            companyName.toLowerCase().includes(searchTerm.toLowerCase())
         const matchesCompany = filterCompany === "all" || line.company_id === filterCompany
         return matchesSearch && matchesCompany
     })
@@ -155,6 +145,14 @@ export default function LineAdminPage() {
             default:
                 return "bg-gray-100 text-gray-800"
         }
+    }
+
+    // 路線数の集計
+    const lineStats = {
+        total: lines.length,
+        jr: lines.filter(line => line.railway_companies?.type === "JR").length,
+        subway: lines.filter(line => line.railway_companies?.type === "地下鉄").length,
+        private: lines.filter(line => line.railway_companies?.type === "私鉄").length,
     }
 
     return (
@@ -179,21 +177,77 @@ export default function LineAdminPage() {
                                     <p className="text-sm text-gray-600">路線の基本情報と管理</p>
                                 </div>
                             </div>
-                            
-                            <div className="flex items-center space-x-3">
-                                <Button asChild variant="outline">
-                                    <Link href="/admin/lines/new">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        新規路線登録
-                                    </Link>
-                                </Button>
-                            </div>
+                            <Button asChild>
+                                <Link href="/admin/lines/new">
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    新規路線登録
+                                </Link>
+                            </Button>
                         </div>
                     </div>
                 </div>
 
                 {/* メインコンテンツ */}
                 <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    {/* 統計カード */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <Card>
+                            <CardContent className="p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-gray-100 rounded-lg">
+                                        <Train className="h-6 w-6 text-gray-600" />
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">総路線数</p>
+                                        <p className="text-2xl font-bold text-gray-900">{lineStats.total}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardContent className="p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                        <Building2 className="h-6 w-6 text-blue-600" />
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">JR路線</p>
+                                        <p className="text-2xl font-bold text-gray-900">{lineStats.jr}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardContent className="p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-purple-100 rounded-lg">
+                                        <MapPin className="h-6 w-6 text-purple-600" />
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">地下鉄</p>
+                                        <p className="text-2xl font-bold text-gray-900">{lineStats.subway}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardContent className="p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-green-100 rounded-lg">
+                                        <Train className="h-6 w-6 text-green-600" />
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">私鉄</p>
+                                        <p className="text-2xl font-bold text-gray-900">{lineStats.private}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
                     {/* メッセージ表示 */}
                     {message && (
                         <Alert className={`mb-6 ${message.type === "error" ? "border-red-200" : "border-green-200"}`}>
@@ -208,168 +262,113 @@ export default function LineAdminPage() {
                         </Alert>
                     )}
 
-                    <div className="space-y-6">
-                        {/* 概要カード */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">総路線数</CardTitle>
-                                    <Train className="h-4 w-4 text-muted-foreground" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{lines.length}</div>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">JR路線</CardTitle>
-                                    <Badge className="bg-blue-100 text-blue-800">JR</Badge>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">
-                                        {companies.find(c => c.type === "JR") ? 
-                                         lines.filter(line => companies.find(c => c.id === line.company_id)?.type === "JR").length : 0}
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">地下鉄</CardTitle>
-                                    <Badge className="bg-purple-100 text-purple-800">地下鉄</Badge>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">
-                                        {companies.find(c => c.type === "地下鉄") ? 
-                                         lines.filter(line => companies.find(c => c.id === line.company_id)?.type === "地下鉄").length : 0}
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">私鉄</CardTitle>
-                                    <Badge className="bg-green-100 text-green-800">私鉄</Badge>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">
-                                        {companies.find(c => c.type === "私鉄") ? 
-                                         lines.filter(line => companies.find(c => c.id === line.company_id)?.type === "私鉄").length : 0}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* 路線一覧 */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle>路線一覧</CardTitle>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                            路線の編集・削除ができます
-                                        </p>
-                                    </div>
+                    {/* 検索・フィルター */}
+                    <Card className="mb-6">
+                        <CardHeader>
+                            <CardTitle>路線一覧</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                    <Input
+                                        placeholder="路線名、会社名で検索..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-10"
+                                    />
                                 </div>
+                                <Select value={filterCompany} onValueChange={setFilterCompany}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="鉄道会社で絞り込み" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">すべての鉄道会社</SelectItem>
+                                        {companies.map((company) => (
+                                            <SelectItem key={company.id} value={company.id}>
+                                                {company.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-                                {/* 検索・フィルター */}
-                                <div className="flex space-x-4 mt-4">
-                                    <div className="relative flex-1">
-                                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                                        <Input
-                                            placeholder="路線名または鉄道会社名で検索..."
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="pl-10"
-                                        />
-                                    </div>
-                                    <Select value={filterCompany} onValueChange={setFilterCompany}>
-                                        <SelectTrigger className="w-48">
-                                            <SelectValue placeholder="鉄道会社で絞り込み" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">すべての鉄道会社</SelectItem>
-                                            {companies.map((company) => (
-                                                <SelectItem key={company.id} value={company.id}>
-                                                    {company.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                            {loading ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="text-gray-500">データを読み込み中...</div>
                                 </div>
-                            </CardHeader>
-
-                            <CardContent>
-                                <div className="space-y-4">
-                                    {loading ? (
-                                        <div className="text-center py-8">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                                            <p className="mt-2 text-gray-600">読み込み中...</p>
+                            ) : filteredLines.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <Train className="mx-auto h-12 w-12 text-gray-400" />
+                                    <h3 className="mt-2 text-sm font-medium text-gray-900">路線が見つかりません</h3>
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        {searchTerm || filterCompany !== "all" ? "検索条件を変更してください" : "最初の路線を登録してください"}
+                                    </p>
+                                    {(!searchTerm && filterCompany === "all") && (
+                                        <div className="mt-6">
+                                            <Button asChild>
+                                                <Link href="/admin/lines/new">
+                                                    <Plus className="h-4 w-4 mr-2" />
+                                                    新規路線登録
+                                                </Link>
+                                            </Button>
                                         </div>
-                                    ) : (
-                                        filteredLines.map((line) => {
-                                            const company = companies.find(c => c.id === line.company_id)
-                                            return (
-                                                <div key={line.id} className="flex items-center justify-between p-4 border rounded-lg">
-                                                    <div className="flex items-center space-x-4">
-                                                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                                                            <Train className="h-5 w-5 text-green-600" />
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex items-center space-x-2">
-                                                                <p className="font-medium">{line.name}</p>
-                                                                {company && (
-                                                                    <Badge className={getCompanyTypeColor(company.type)}>
-                                                                        {company.type}
-                                                                    </Badge>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-sm text-gray-500">{line.company_name}</p>
-                                                            <div className="flex items-center space-x-4 text-xs text-gray-400 mt-1">
-                                                                <span className="flex items-center">
-                                                                    <MapPin className="h-3 w-3 mr-1" />
-                                                                    {line.stations_count}駅
-                                                                </span>
-                                                                <span>
-                                                                    更新: {new Date(line.updated_at).toLocaleDateString()}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex items-center space-x-2">
-                                                        <Button variant="outline" size="sm" asChild>
-                                                            <Link href={`/admin/lines/${line.id}/edit`}>
-                                                                <Edit className="h-4 w-4 mr-1" />
-                                                                編集
-                                                            </Link>
-                                                        </Button>
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm"
-                                                            onClick={() => handleDeleteLine(line.id, line.name)}
-                                                            className="text-red-600 hover:text-red-700"
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {filteredLines.map((line) => (
+                                        <div key={line.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                                            <div className="flex items-center space-x-4">
+                                                <div className="flex-shrink-0">
+                                                    <div 
+                                                        className="w-4 h-4 rounded-full border-2" 
+                                                        style={{ 
+                                                            backgroundColor: line.color || line.line_color || '#666666',
+                                                            borderColor: line.color || line.line_color || '#666666'
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-medium text-gray-900">{line.name}</h3>
+                                                    <div className="flex items-center space-x-2 mt-1">
+                                                        <Badge 
+                                                            className={getCompanyTypeColor(line.railway_companies?.type || "")}
                                                         >
-                                                            <Trash2 className="h-4 w-4 mr-1" />
-                                                            削除
-                                                        </Button>
+                                                            {line.railway_companies?.name || "不明"}
+                                                        </Badge>
+                                                        <span className="text-sm text-gray-500">
+                                                            {line.stations_count || 0}駅
+                                                        </span>
+                                                        <span className="text-xs text-gray-400">
+                                                            更新: {new Date(line.updated_at).toLocaleDateString()}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            )
-                                        })
-                                    )}
-
-                                    {!loading && filteredLines.length === 0 && (
-                                        <div className="text-center py-8 text-gray-500">
-                                            <Train className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                                            <p>条件に一致する路線が見つかりませんでした</p>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <Button variant="outline" size="sm" asChild>
+                                                    <Link href={`/admin/lines/${line.id}/edit`}>
+                                                        <Edit className="h-4 w-4 mr-1" />
+                                                        編集
+                                                    </Link>
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteLine(line.id, line.name)}
+                                                    className="text-red-600 border-red-200 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="h-4 w-4 mr-1" />
+                                                    削除
+                                                </Button>
+                                            </div>
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </main>
             </div>
         </LineManagementAccess>
