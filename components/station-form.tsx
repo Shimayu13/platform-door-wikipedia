@@ -121,7 +121,7 @@ export function StationForm({
   const [lineSelection, setLineSelection] = useState({
     companyId: "",  // これは空でも大丈夫（placeholder用）
     lineId: "",     // これも空でも大丈夫（placeholder用）
-})
+  })
 
   const [lineDetails, setLineDetails] = useState({
     station_code: "",
@@ -488,10 +488,10 @@ export function StationForm({
             <div>
               <Label htmlFor="prefecture">都道府県 *</Label>
               <Select
-                value={lineSelection.companyId}
+                value={formData.prefecture}  // lineSelection.companyId から変更
                 onValueChange={(value) => {
-                  if (value === "") return;  // 空文字チェックを追加
-                  setLineSelection({ companyId: value, lineId: "" });
+                  // 都道府県の設定に変更
+                  setFormData({ ...formData, prefecture: value });
                 }}
                 disabled={loading}
               >

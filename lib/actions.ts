@@ -51,6 +51,20 @@ export interface StationUpdateInput {
   address?: string
 }
 
+export interface LineInput {
+  name: string
+  company_id: string
+  color?: string
+  description?: string
+}
+
+export interface LineUpdateInput {
+  name?: string
+  company_id?: string
+  color?: string
+  description?: string
+}
+
 export async function createStation(data: StationInput, userId: string) {
   try {
     // デバッグ用ログ
@@ -1448,16 +1462,6 @@ export async function createLine(
 
     console.log("🚇 Creating line:", input);
     
-    // 現在のセッション情報をデバッグ
-    const { data: session, error: sessionError } = await supabase.auth.getSession();
-    console.log("🚇 Current session:", session);
-    console.log("🚇 Session error:", sessionError);
-    
-    // 現在のユーザー情報をデバッグ
-    const { data: user, error: userError } = await supabase.auth.getUser();
-    console.log("🚇 Current user:", user);
-    console.log("🚇 User error:", userError);
-
     const { data, error } = await supabase
       .from('lines')
       .insert({
@@ -1474,8 +1478,6 @@ export async function createLine(
         )
       `)
       .single()
-
-    console.log("🚇 Supabase response:", { data, error });
 
     if (error) {
       console.error('Error creating line:', error)

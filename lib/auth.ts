@@ -3,14 +3,14 @@
 import { createClient } from "@supabase/supabase-js"
 import { useEffect, useState } from "react"
 import type { UserRole } from "./permissions"
-import { User } from '@supabase/auth-js'
+import { User as SupabaseUser } from '@supabase/auth-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export interface User {
+export interface AppUser {
   id: string
   email: string
   user_metadata?: {
@@ -23,9 +23,11 @@ export interface User {
 
 export interface UserProfile {
   id: string
+  name?: string
   username?: string
   display_name?: string
   bio?: string
+  location?: string
   avatar_url?: string
   role: UserRole
   created_at: string
@@ -34,7 +36,7 @@ export interface UserProfile {
 
 // 認証状態を管理するカスタムフック
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export function useAuth() {
         data: { session },
       } = await supabase.auth.getSession()
 
-            // === デバッグログを追加 ===
+      // === デバッグログを追加 ===
       console.log('Initial session:', session);
       console.log('Session user:', session?.user);
       // === ここまで ===
@@ -75,7 +77,7 @@ export function useAuth() {
 }
 
 // ユーザープロフィールを作成
-export async function createUserProfile(user: any) {
+export async function createUserProfile(user: SupabaseUser) {
   try {
     // 既存のプロフィールをチェック
     const existingProfile = await getUserProfile(user.id)
@@ -105,6 +107,7 @@ export async function createUserProfile(user: any) {
   }
 }
 
+
 // getUserProfile 関数を以下のように修正
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   try {
@@ -114,25 +117,21 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
       .from("user_profiles")
       .select("*")
       .eq("id", userId)
-      .single()  // single() を使用
-
-    console.log("🔍 getUserProfile result:", { data, error })
+      .single()
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        console.log("🔍 Profile not found, returning null")
-        return null
-      }
       console.error("Error fetching user profile:", error)
       return null
     }
 
+    console.log("✅ getUserProfile result:", data)
     return data
   } catch (error) {
-    console.error("Error fetching user profile:", error)
+    console.error("Error in getUserProfile:", error)
     return null
   }
 }
+
 
 // ユーザープロフィールを更新
 export async function updateUserProfile(userId: string, updates: Partial<UserProfile>) {
@@ -158,52 +157,50 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
 }
 
 // ユーザーロールを変更（開発者のみ）
-export async function changeUserRole(userId: string, newRole: UserRole, currentUserRole: UserRole) {
+export async function changeUserRole(userId: string, newRole: UserRole, currentUserRole: UserRole): Promise<{ success: boolean; error?: string }> {
   try {
-    // 開発者のみがロール変更可能
     if (currentUserRole !== "開発者") {
       return { success: false, error: "権限がありません" }
     }
 
     const { error } = await supabase
       .from("user_profiles")
-      .update({
-        role: newRole,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ role: newRole, updated_at: new Date().toISOString() })
       .eq("id", userId)
 
     if (error) {
       console.error("Error changing user role:", error)
-      return { success: false, error }
+      return { success: false, error: "ロールの変更に失敗しました" }
     }
 
     return { success: true }
   } catch (error) {
-    console.error("Error changing user role:", error)
-    return { success: false, error }
+    console.error("Error in changeUserRole:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
   }
 }
 
 // 全ユーザーを取得（開発者・編集者のみ）
-export async function getAllUsers(currentUserRole: UserRole) {
+export async function getAllUsers(userRole: UserRole): Promise<{ success: boolean; data?: UserProfile[]; error?: string }> {
   try {
-    // 編集者以上のみがユーザー一覧を取得可能
-    if (currentUserRole !== "開発者" && currentUserRole !== "編集者") {
-      return { success: false, error: "権限がありません", data: [] }
+    if (userRole !== "開発者") {
+      return { success: false, error: "権限がありません" }
     }
 
-    const { data, error } = await supabase.from("user_profiles").select("*").order("created_at", { ascending: false })
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("Error fetching users:", error)
-      return { success: false, error, data: [] }
+      console.error("Error fetching all users:", error)
+      return { success: false, error: "ユーザー一覧の取得に失敗しました" }
     }
 
-    return { success: true, data: data || [] }
+    return { success: true, data }
   } catch (error) {
-    console.error("Error fetching users:", error)
-    return { success: false, error, data: [] }
+    console.error("Error in getAllUsers:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
   }
 }
 
