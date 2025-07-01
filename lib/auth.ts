@@ -105,23 +105,29 @@ export async function createUserProfile(user: any) {
   }
 }
 
-// ユーザープロフィールを取得
+// getUserProfile 関数を以下のように修正
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   try {
-    const { data, error } = await supabase.from("user_profiles").select("*").eq("id", userId)
+    console.log("🔍 getUserProfile called with userId:", userId)
+    
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("id", userId)
+      .single()  // single() を使用
+
+    console.log("🔍 getUserProfile result:", { data, error })
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        console.log("🔍 Profile not found, returning null")
+        return null
+      }
       console.error("Error fetching user profile:", error)
       return null
     }
 
-    // データが存在しない場合はnullを返す
-    if (!data || data.length === 0) {
-      return null
-    }
-
-    // 複数のプロフィールが存在する場合は最初のものを返す
-    return data[0]
+    return data
   } catch (error) {
     console.error("Error fetching user profile:", error)
     return null
