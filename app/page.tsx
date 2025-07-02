@@ -1,123 +1,85 @@
-"use client"
-
+// app/page.tsx - エラー修正版
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { MapPin, Train, Users, FileText, TrendingUp, Clock } from "lucide-react"
+import { Train, FileText, Clock, TrendingUp, Calendar, ArrowRight } from "lucide-react"
 import Link from "next/link"
-import { CommonHeader } from "@/components/common-header"
-import { useAuthContext } from "@/components/auth-provider"
+import { getNews, getStationStats, type News } from "@/lib/supabase"
 
-export default function HomePage() {
-  const { user } = useAuthContext()
+export default async function HomePage() {
+  // 統計データとニュースを並行取得
+  const [stats, news] = await Promise.all([
+    getStationStats(), // getStats() の代わりに getStationStats() を使用
+    getNews(5) // 最新5件のニュースを取得
+  ])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <CommonHeader />
+    <div className="min-h-screen bg-gray-50">
+      {/* ヘッダー */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-2">
+              <Train className="h-8 w-8 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">ホームドア情報局</h1>
+            </div>
+            <nav className="flex space-x-4">
+              <Button variant="ghost" asChild>
+                <Link href="/stations">駅検索</Link>
+              </Button>
+              <Button variant="ghost" asChild>
+                <Link href="/companies">事業者別</Link>
+              </Button>
+              <Button variant="ghost" asChild>
+                <Link href="/news">ニュース</Link>
+              </Button>
+              <Button variant="ghost" asChild>
+                <Link href="/contribute">情報提供</Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/auth">ログイン</Link>
+              </Button>
+            </nav>
+          </div>
+        </div>
+      </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ヒーローセクション */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            全国のホームドア設置状況を
-            <br />
-            リアルタイムで確認
+            全国のホームドア設置状況を一覧
           </h2>
-          <p className="text-xl text-gray-600 mb-8">
-            鉄道各社のホームドア整備計画から最新の設置状況まで、
-            <br />
-            詳細な情報を駅別・路線別で検索できます
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            鉄道駅のホームドア（可動式ホーム柵）の設置状況を網羅的に収集・公開しています。
+            最新の設置状況や工事予定をリアルタイムでお届けします。
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" asChild>
-              <Link href="/stations">
-                <MapPin className="h-5 w-5 mr-2" />
-                駅を検索する
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/companies">
-                <Train className="h-5 w-5 mr-2" />
-                鉄道会社を見る
-              </Link>
-            </Button>
-          </div>
         </div>
 
-        {/* 主要機能 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          <Card className="text-center hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <MapPin className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-              <CardTitle>駅別検索</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                全国の駅を検索して、各ホームのドア設置状況を詳細に確認できます。
-              </p>
-              <Button variant="outline" asChild className="w-full">
-                <Link href="/stations">駅を検索</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="text-center hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <Train className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <CardTitle>鉄道会社別</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                各鉄道会社のホームドア整備計画と進捗状況を一覧で確認できます。
-              </p>
-              <Button variant="outline" asChild className="w-full">
-                <Link href="/companies">会社一覧</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="text-center hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <Users className="h-12 w-12 text-purple-600 mx-auto mb-4" />
-              <CardTitle>情報提供</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                最新の設置情報や工事状況を投稿して、データベースを充実させましょう。
-              </p>
-              <Button variant="outline" asChild className="w-full">
-                <Link href={user ? "/contribute" : "/auth"}>
-                  {user ? "情報を提供" : "ログインして参加"}
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 統計情報 */}
-        <div className="bg-white rounded-lg shadow-sm p-8 mb-12">
-          <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">データベース統計</h3>
-            <p className="text-gray-600">現在収録されている情報の概要</p>
+        {/* 統計概要 */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-blue-600 mb-2">
+              {stats?.total?.toLocaleString() || "-"}
+            </div>
+            <div className="text-sm text-gray-600">総プラットフォーム数</div>
           </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">-</div>
-              <div className="text-sm text-gray-600">登録駅数</div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-green-600 mb-2">
+              {(stats?.operating + stats?.installed)?.toLocaleString() || "-"}
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">-</div>
-              <div className="text-sm text-gray-600">設置完了</div>
+            <div className="text-sm text-gray-600">設置済み</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-orange-600 mb-2">
+              {(stats?.restored + stats?.temporary)?.toLocaleString() || "-"}
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600 mb-2">-</div>
-              <div className="text-sm text-gray-600">工事中</div>
+            <div className="text-sm text-gray-600">工事中</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-purple-600 mb-2">
+              {stats?.notInstalled?.toLocaleString() || "-"}
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600 mb-2">-</div>
-              <div className="text-sm text-gray-600">計画中</div>
-            </div>
+            <div className="text-sm text-gray-600">未設置</div>
           </div>
         </div>
 
@@ -132,16 +94,54 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <Clock className="h-4 w-4 text-gray-400 mt-1" />
-                  <div>
-                    <p className="text-sm text-gray-600">システム情報</p>
-                    <p className="font-medium">データベースが正常に稼働中です</p>
+                {news && news.length > 0 ? (
+                  news.slice(0, 3).map((article: News) => (
+                    <div key={article.id} className="flex items-start space-x-3 pb-3 border-b last:border-b-0">
+                      <Calendar className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-600">
+                          {article.published_at 
+                            ? new Date(article.published_at).toLocaleDateString("ja-JP", {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })
+                            : new Date(article.created_at).toLocaleDateString("ja-JP", {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })
+                          }
+                        </p>
+                        <Link 
+                          href={`/news/${article.id}`}
+                          className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                        >
+                          {article.title}
+                        </Link>
+                        {article.summary && (
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                            {article.summary}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-start space-x-3">
+                    <Clock className="h-4 w-4 text-gray-400 mt-1" />
+                    <div>
+                      <p className="text-sm text-gray-600">システム情報</p>
+                      <p className="font-medium">データベースが正常に稼働中です</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
               <Button variant="outline" className="w-full mt-4" asChild>
-                <Link href="/news">すべてのニュースを見る</Link>
+                <Link href="/news">
+                  すべてのニュースを見る
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -171,11 +171,73 @@ export default function HomePage() {
                     より正確で最新の情報が集まっています
                   </p>
                 </div>
+                {stats && stats.total > 0 && (
+                  <div className="p-3 bg-purple-50 rounded-lg">
+                    <p className="text-sm font-medium text-purple-900">
+                      全体の設置率: {(((stats.operating + stats.installed) / stats.total) * 100).toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-purple-700 mt-1">
+                      継続的に設置が進んでいます
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* クイックアクセス */}
+        <div className="mt-12">
+          <Card>
+            <CardHeader>
+              <CardTitle>クイックアクセス</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2" asChild>
+                  <Link href="/stations">
+                    <Train className="h-8 w-8 text-blue-600" />
+                    <div className="text-center">
+                      <div className="font-semibold">駅検索</div>
+                      <div className="text-sm text-gray-600">駅名で検索</div>
+                    </div>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2" asChild>
+                  <Link href="/companies">
+                    <Train className="h-8 w-8 text-green-600" />
+                    <div className="text-center">
+                      <div className="font-semibold">事業者別</div>
+                      <div className="text-sm text-gray-600">鉄道会社一覧</div>
+                    </div>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2" asChild>
+                  <Link href="/contribute">
+                    <FileText className="h-8 w-8 text-purple-600" />
+                    <div className="text-center">
+                      <div className="font-semibold">情報提供</div>
+                      <div className="text-sm text-gray-600">データ入力・更新</div>
+                    </div>
+                  </Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
       </main>
+
+      {/* フッター */}
+      <footer className="bg-white border-t mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center text-gray-600">
+            <p>&copy; 2024 ホームドア情報局. All rights reserved.</p>
+            <p className="mt-2 text-sm">
+              全国のホームドア設置状況を共有するプラットフォーム
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

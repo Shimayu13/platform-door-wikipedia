@@ -516,7 +516,7 @@ export interface ManufacturerInput {
   description?: string
 }
 
-// ニュース管理関数
+// ニュース記事の作成
 export async function createNews(data: NewsInput, userId: string) {
   try {
     const { data: news, error } = await supabase
@@ -575,7 +575,9 @@ export async function updateNews(newsId: string, data: NewsInput, userId: string
         summary: data.summary,
         status: data.status,
         published_at:
-          data.status === "公開" && !existing.published_at ? new Date().toISOString() : existing.published_at,
+          data.status === "公開" && !existing.published_at 
+            ? new Date().toISOString() 
+            : existing.published_at,
         updated_at: new Date().toISOString(),
       })
       .eq("id", newsId)
@@ -657,14 +659,34 @@ export async function getAllNews(userRole: string) {
     const { data, error } = await query
 
     if (error) {
-      console.error("Error fetching news:", error)
-      return { success: false, error: "ニュース一覧の取得に失敗しました", data: [] }
+      console.error("Error fetching all news:", error)
+      return { success: false, error: "ニュース一覧の取得に失敗しました" }
     }
 
     return { success: true, data: data || [] }
   } catch (error) {
     console.error("Unexpected error:", error)
-    return { success: false, error: "予期しないエラーが発生しました", data: [] }
+    return { success: false, error: "予期しないエラーが発生しました" }
+  }
+}
+
+export async function getNewsById(id: string) {
+  try {
+    const { data, error } = await supabase
+      .from("news")
+      .select("*")
+      .eq("id", id)
+      .single()
+
+    if (error) {
+      console.error("Error fetching news by id:", error)
+      return { success: false, error: "ニュース記事の取得に失敗しました" }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    return { success: false, error: "予期しないエラーが発生しました" }
   }
 }
 
