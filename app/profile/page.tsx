@@ -1,4 +1,4 @@
-// app/profile/page.tsx - 完全修正版
+// app/profile/page.tsx - 修正版（ログアウト機能付き）
 
 "use client"
 
@@ -17,16 +17,24 @@ import {
   AlertCircle,
   Mail,
   Calendar,
-  MapPin
+  MapPin,
+  LogOut,
+  Shield,
+  Key
 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { usePermissions } from "@/hooks/use-permissions"
 import { canAccessAdmin, ROLE_DESCRIPTIONS, ROLE_COLORS } from "@/lib/permissions"
 import { CommonHeader } from "@/components/common-header"
+import { signOut } from "@/lib/auth"
 
 export default function ProfilePage() {
+  const router = useRouter()
   const { user, profile, loading } = usePermissions()
   const [isEditing, setIsEditing] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     location: "",
@@ -45,6 +53,40 @@ export default function ProfilePage() {
 
   const getRoleBadgeClass = (role: string) => {
     return ROLE_COLORS[role as keyof typeof ROLE_COLORS] || "bg-gray-100 text-gray-800"
+  }
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    setMessage(null)
+
+    try {
+      const result = await signOut()
+      
+      if (result.success) {
+        setMessage({
+          type: "success",
+          text: "正常にログアウトしました"
+        })
+        
+        // 1秒後にログインページにリダイレクト
+        setTimeout(() => {
+          router.push("/auth")
+        }, 1000)
+      } else {
+        setMessage({
+          type: "error",
+          text: result.error || "ログアウトに失敗しました"
+        })
+        setIsSigningOut(false)
+      }
+    } catch (error) {
+      console.error("Logout error:", error)
+      setMessage({
+        type: "error",
+        text: "予期しないエラーが発生しました"
+      })
+      setIsSigningOut(false)
+    }
   }
 
   if (loading) {
@@ -84,6 +126,20 @@ export default function ProfilePage() {
       />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* メッセージ表示 */}
+        {message && (
+          <Alert className={`mb-6 ${message.type === "error" ? "border-red-200" : "border-green-200"}`}>
+            {message.type === "error" ? (
+              <AlertCircle className="h-4 w-4 text-red-600" />
+            ) : (
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            )}
+            <AlertDescription className={message.type === "error" ? "text-red-700" : "text-green-700"}>
+              {message.text}
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* メインプロフィール */}
           <div className="lg:col-span-2 space-y-6">
@@ -103,12 +159,16 @@ export default function ProfilePage() {
                     <h3 className="text-lg font-semibold">
                       {profile.name || profile.display_name || "名前未設定"}
                     </h3>
-                    <p className="text-gray-600">{user.email}</p>
+                    <p className="text-gray-600 flex items-center">
+                      <Mail className="h-4 w-4 mr-1" />
+                      {user.email}
+                    </p>
                     <div className="flex items-center space-x-2 mt-1">
                       <Badge className={getRoleBadgeClass(profile.role)}>
                         {profile.role}
                       </Badge>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
                         登録日: {new Date(profile.created_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -116,40 +176,52 @@ export default function ProfilePage() {
                 </div>
 
                 {!isEditing ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div>
-                      <Label className="text-sm font-medium text-gray-600">居住地</Label>
-                      <p className="text-sm">{profile.location || "未設定"}</p>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsEditing(true)}
+                        className="mb-4"
+                      >
+                        プロフィール編集
+                      </Button>
                     </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">自己紹介</Label>
-                      <p className="text-sm">{profile.bio || "未設定"}</p>
-                    </div>
-                    <Button onClick={() => setIsEditing(true)} variant="outline">
-                      編集
-                    </Button>
+                    
+                    {formData.location && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <MapPin className="h-4 w-4 mr-1" />
+                        {formData.location}
+                      </div>
+                    )}
+                    
+                    {formData.bio && (
+                      <div className="text-sm text-gray-700">
+                        <p className="font-medium mb-1">自己紹介</p>
+                        <p>{formData.bio}</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="name">名前</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="name">表示名</Label>
                       <Input
                         id="name"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="お名前"
+                        placeholder="表示名"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="location">居住地</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="location">所在地</Label>
                       <Input
                         id="location"
                         value={formData.location}
                         onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                        placeholder="東京都"
+                        placeholder="例：東京都"
                       />
                     </div>
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="bio">自己紹介</Label>
                       <Input
                         id="bio"
@@ -192,7 +264,7 @@ export default function ProfilePage() {
                     {ROLE_DESCRIPTIONS[profile.role as keyof typeof ROLE_DESCRIPTIONS]}
                   </p>
 
-                  {/* 管理画面ボタン - 修正部分 */}
+                  {/* 管理画面ボタン */}
                   {canAccessAdmin(profile.role as any) && (
                     <div className="pt-3 border-t">
                       <Button variant="outline" size="sm" asChild className="w-full">
@@ -207,79 +279,76 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
 
-            {/* 利用可能な機能 */}
+            {/* アカウント設定カード */}
             <Card>
               <CardHeader>
-                <CardTitle>利用可能な機能</CardTitle>
+                <CardTitle className="flex items-center">
+                  <Settings className="mr-2 h-5 w-5" />
+                  アカウント設定
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center">
-                    <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                    <span>サイト閲覧</span>
-                  </div>
-                  
-                  {(profile.role === "提供者" || profile.role === "編集者" || profile.role === "開発者") && (
-                    <div className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span>駅情報の入力・更新</span>
-                    </div>
-                  )}
-                  
-                  {canAccessAdmin(profile.role as any) && (
-                    <>
-                      <div className="flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                        <span>管理機能の利用</span>
-                      </div>
-                      <div className="flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                        <span>路線・駅管理</span>
-                      </div>
-                      <div className="flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                        <span>ニュース管理</span>
-                      </div>
-                    </>
-                  )}
-                  
-                  {profile.role === "開発者" && (
-                    <>
-                      <div className="flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                        <span>ユーザー管理</span>
-                      </div>
-                      <div className="flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                        <span>システム管理</span>
-                      </div>
-                    </>
-                  )}
-                </div>
+              <CardContent className="space-y-3">
+                {/* パスワード変更 */}
+                <Button variant="outline" size="sm" asChild className="w-full">
+                  <Link href="/profile/change-password">
+                    <Key className="h-4 w-4 mr-2" />
+                    パスワード変更
+                  </Link>
+                </Button>
+
+                {/* パスワード再設定 */}
+                <Button variant="outline" size="sm" asChild className="w-full">
+                  <Link href="/auth/forgot-password">
+                    <Shield className="h-4 w-4 mr-2" />
+                    パスワード再設定
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
 
-            {/* アカウント情報 */}
-            <Card>
+            {/* ログアウトカード */}
+            <Card className="border-red-200">
               <CardHeader>
-                <CardTitle>アカウント情報</CardTitle>
+                <CardTitle className="flex items-center text-red-700">
+                  <LogOut className="mr-2 h-5 w-5" />
+                  ログアウト
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center">
-                    <Mail className="h-4 w-4 text-gray-500 mr-2" />
-                    <span>{user.email}</span>
+                <p className="text-sm text-gray-600 mb-3">
+                  アカウントからログアウトします
+                </p>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  {isSigningOut ? "ログアウト中..." : "ログアウト"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* 統計情報カード */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <CheckCircle className="mr-2 h-5 w-5" />
+                  アクティビティ
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">最終ログイン</span>
+                    <span>{new Date(user.last_sign_in_at || user.created_at).toLocaleDateString()}</span>
                   </div>
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 text-gray-500 mr-2" />
-                    <span>登録: {new Date(profile.created_at).toLocaleDateString()}</span>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">アカウント作成</span>
+                    <span>{new Date(user.created_at).toLocaleDateString()}</span>
                   </div>
-                  {profile.location && (
-                    <div className="flex items-center">
-                      <MapPin className="h-4 w-4 text-gray-500 mr-2" />
-                      <span>{profile.location}</span>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
