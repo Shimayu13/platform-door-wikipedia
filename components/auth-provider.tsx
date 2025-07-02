@@ -1,3 +1,4 @@
+// components/auth-provider.tsx - 修正版
 "use client"
 
 import { createContext, useContext, type ReactNode } from "react"
@@ -16,7 +17,11 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
 
-  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuthContext() {

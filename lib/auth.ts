@@ -1,3 +1,4 @@
+// lib/auth.ts - 認証システム修正版
 "use client"
 
 import { createClient } from "@supabase/supabase-js"
@@ -10,16 +11,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export interface AppUser {
-  id: string
-  email: string
-  user_metadata?: {
-    [key: string]: any
-  }
-  app_metadata?: {
-    [key: string]: any
-  }
-}
+// 型定義を統一
+export type User = SupabaseUser
 
 export interface UserProfile {
   id: string
@@ -36,23 +29,31 @@ export interface UserProfile {
 
 // 認証状態を管理するカスタムフック
 export function useAuth() {
-  const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     // 初期認証状態を取得
     const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      try {
+        const {
+          data: { session },
+          error
+        } = await supabase.auth.getSession()
 
-      // === デバッグログを追加 ===
-      console.log('Initial session:', session);
-      console.log('Session user:', session?.user);
-      // === ここまで ===
-      
-      setUser(session?.user ?? null)
-      setLoading(false)
+        if (error) {
+          console.error('Session error:', error)
+          setUser(null)
+        } else {
+          console.log('🔐 Initial session:', session?.user?.id ? 'User logged in' : 'No user')
+          setUser(session?.user ?? null)
+        }
+      } catch (error) {
+        console.error('Error getting session:', error)
+        setUser(null)
+      } finally {
+        setLoading(false)
+      }
     }
 
     getInitialSession()
@@ -61,12 +62,14 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔐 Auth state change:', event, session?.user?.id ? 'User logged in' : 'No user')
+      
       setUser(session?.user ?? null)
       setLoading(false)
 
-      // ユーザーがサインアップした場合、プロフィールを作成
+      // ユーザーがサインインした場合、プロフィールを作成または取得
       if (event === "SIGNED_IN" && session?.user) {
-        await createUserProfile(session.user)
+        await getOrCreateUserProfile(session.user.id, session.user.email)
       }
     })
 
@@ -76,39 +79,7 @@ export function useAuth() {
   return { user, loading }
 }
 
-// ユーザープロフィールを作成
-export async function createUserProfile(user: SupabaseUser) {
-  try {
-    // 既存のプロフィールをチェック
-    const existingProfile = await getUserProfile(user.id)
-    if (existingProfile) {
-      return existingProfile
-    }
-
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .insert({
-        id: user.id,
-        display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "ユーザー",
-        role: "閲覧者", // デフォルトロール
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error creating user profile:", error)
-      return null
-    }
-
-    return data
-  } catch (error) {
-    console.error("Error creating user profile:", error)
-    return null
-  }
-}
-
-
-// getUserProfile 関数を以下のように修正
+// ユーザープロフィールを取得
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   try {
     console.log("🔍 getUserProfile called with userId:", userId)
@@ -132,6 +103,43 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
   }
 }
 
+// ユーザープロフィールを作成または取得
+export async function getOrCreateUserProfile(userId: string, userEmail?: string): Promise<UserProfile | null> {
+  try {
+    console.log("🔧 getOrCreateUserProfile called:", userId)
+    
+    // まずプロフィールを取得を試みる
+    let profile = await getUserProfile(userId)
+
+    // プロフィールが存在しない場合は作成
+    if (!profile) {
+      console.log("👤 Creating new user profile for:", userId)
+      
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .insert({
+          id: userId,
+          display_name: userEmail?.split("@")[0] || "ユーザー",
+          role: "閲覧者", // デフォルトロール
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error("Error creating user profile:", error)
+        return null
+      }
+
+      profile = data
+      console.log("✅ Created user profile:", profile)
+    }
+
+    return profile
+  } catch (error) {
+    console.error("Error getting or creating user profile:", error)
+    return null
+  }
+}
 
 // ユーザープロフィールを更新
 export async function updateUserProfile(userId: string, updates: Partial<UserProfile>) {
@@ -180,7 +188,7 @@ export async function changeUserRole(userId: string, newRole: UserRole, currentU
   }
 }
 
-// 全ユーザーを取得（開発者・編集者のみ）
+// 全ユーザーを取得（開発者のみ）
 export async function getAllUsers(userRole: UserRole): Promise<{ success: boolean; data?: UserProfile[]; error?: string }> {
   try {
     if (userRole !== "開発者") {
@@ -239,8 +247,10 @@ export async function signIn(email: string, password: string) {
       return { success: false, error: error.message }
     }
 
+    console.log("✅ Sign in successful:", data.user?.id)
     return { success: true, data }
   } catch (error) {
+    console.error("Sign in error:", error)
     return { success: false, error: "サインインに失敗しました" }
   }
 }
@@ -254,8 +264,10 @@ export async function signOut() {
       return { success: false, error: error.message }
     }
 
+    console.log("✅ Sign out successful")
     return { success: true }
   } catch (error) {
+    console.error("Sign out error:", error)
     return { success: false, error: "サインアウトに失敗しました" }
   }
 }
@@ -277,36 +289,25 @@ export async function resetPassword(email: string) {
   }
 }
 
-// プロフィールを取得または作成
-export async function getOrCreateUserProfile(userId: string, userEmail?: string): Promise<UserProfile | null> {
+// パスワードリセットメール送信（エイリアス）
+export async function sendPasswordResetEmail(email: string) {
+  return resetPassword(email)
+}
+
+// パスワードリセット確認（メールリンクから）
+export async function confirmPasswordReset(newPassword: string) {
   try {
-    // まずプロフィールを取得を試みる
-    let profile = await getUserProfile(userId)
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
 
-    // プロフィールが存在しない場合は作成
-    if (!profile) {
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .insert({
-          id: userId,
-          display_name: userEmail?.split("@")[0] || "ユーザー",
-          role: "閲覧者", // デフォルトロール
-        })
-        .select()
-        .single()
-
-      if (error) {
-        console.error("Error creating user profile:", error)
-        return null
-      }
-
-      profile = data
+    if (error) {
+      return { success: false, error: error.message }
     }
 
-    return profile
+    return { success: true }
   } catch (error) {
-    console.error("Error getting or creating user profile:", error)
-    return null
+    return { success: false, error: "パスワードの更新に失敗しました" }
   }
 }
 
@@ -341,39 +342,5 @@ export async function changePassword(currentPassword: string, newPassword: strin
     return { success: true }
   } catch (error) {
     return { success: false, error: "パスワード変更に失敗しました" }
-  }
-}
-
-// パスワードリセットメール送信
-export async function sendPasswordResetEmail(email: string) {
-  try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    })
-
-    if (error) {
-      return { success: false, error: error.message }
-    }
-
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: "パスワードリセットメールの送信に失敗しました" }
-  }
-}
-
-// パスワードリセット確認（メールリンクから）
-export async function confirmPasswordReset(newPassword: string) {
-  try {
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
-    })
-
-    if (error) {
-      return { success: false, error: error.message }
-    }
-
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: "パスワードの更新に失敗しました" }
   }
 }

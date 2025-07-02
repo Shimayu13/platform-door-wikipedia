@@ -1,9 +1,10 @@
-// app/page.tsx - エラー修正版
+// app/page.tsx - 正しいバージョン（完全版）
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Train, FileText, Clock, TrendingUp, Calendar, ArrowRight } from "lucide-react"
+import { FileText, Clock, TrendingUp, Calendar, ArrowRight, Train } from "lucide-react"
 import Link from "next/link"
 import { getNews, getStationStats, type News } from "@/lib/supabase"
+import { DynamicHeader } from "@/components/dynamic-header"
 
 export default async function HomePage() {
   // 統計データとニュースを並行取得
@@ -14,34 +15,8 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ヘッダー */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <Train className="h-8 w-8 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">ホームドア情報局</h1>
-            </div>
-            <nav className="flex space-x-4">
-              <Button variant="ghost" asChild>
-                <Link href="/stations">駅検索</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/companies">事業者別</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/news">ニュース</Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/contribute">情報提供</Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/auth">ログイン</Link>
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      {/* 動的ヘッダー */}
+      <DynamicHeader />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ヒーローセクション */}

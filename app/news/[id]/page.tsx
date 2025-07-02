@@ -5,10 +5,11 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Calendar, ArrowLeft, Share2 } from "lucide-react"
+import { FileText, Calendar, ArrowLeft, Share2, Train } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase, type News } from "@/lib/supabase"
+import { DynamicHeader } from "@/components/dynamic-header"
 
 // 関連ニュース用の型定義
 interface RelatedNews {
@@ -167,28 +168,8 @@ export default function NewsDetailPage({ params }: NewsDetailPageProps) {
   if (notFound || !news) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* ヘッダー */}
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center space-x-2">
-                <FileText className="h-8 w-8 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">ニュース詳細</h1>
-              </div>
-              <nav className="flex space-x-4">
-                <Button variant="ghost" asChild>
-                  <Link href="/news">
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    ニュース一覧
-                  </Link>
-                </Button>
-                <Button variant="ghost" asChild>
-                  <Link href="/">ホーム</Link>
-                </Button>
-              </nav>
-            </div>
-          </div>
-        </header>
+        {/* 動的ヘッダー */}
+        <DynamicHeader />
 
         {/* エラー表示 */}
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center min-h-[calc(100vh-4rem)]">
@@ -218,31 +199,8 @@ export default function NewsDetailPage({ params }: NewsDetailPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ヘッダー */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-8 w-8 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">ニュース詳細</h1>
-            </div>
-            <nav className="flex space-x-4">
-              <Button variant="ghost" asChild>
-                <Link href="/news">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  ニュース一覧
-                </Link>
-              </Button>
-              <Button variant="ghost" asChild>
-                <Link href="/">ホーム</Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/auth">ログイン</Link>
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      {/* 動的ヘッダー */}
+      <DynamicHeader />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -1,4 +1,4 @@
-// app/admin/roles/page.tsx - 新規作成
+// app/admin/roles/page.tsx - 権限表示修正版
 "use client"
 
 import { useState } from "react"
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Shield, Users, Eye, Edit, Trash2, Settings, UserCheck, Crown, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { ROLE_LEVELS, ROLE_DESCRIPTIONS, ROLE_COLORS, Permission, ROLE_PERMISSIONS } from "@/lib/permissions"
+import { ROLE_LEVELS, ROLE_DESCRIPTIONS, ROLE_COLORS, Permission, ROLE_PERMISSIONS, PERMISSION_NAMES } from "@/lib/permissions"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
@@ -28,9 +28,12 @@ export default function RoleManagementPage() {
         return <Eye className="h-4 w-4" />
       case Permission.CREATE_STATION_INFO:
       case Permission.UPDATE_STATION_INFO:
+      case Permission.CREATE_LINES:
+      case Permission.UPDATE_LINES:
         return <Edit className="h-4 w-4" />
       case Permission.DELETE_STATION_INFO:
       case Permission.DELETE_ANY_CONTENT:
+      case Permission.DELETE_LINES:
         return <Trash2 className="h-4 w-4" />
       case Permission.MANAGE_USERS:
         return <Users className="h-4 w-4" />
@@ -42,20 +45,7 @@ export default function RoleManagementPage() {
   }
 
   const getPermissionName = (permission: Permission) => {
-    const names = {
-      [Permission.VIEW_CONTENT]: "コンテンツ閲覧",
-      [Permission.CREATE_STATION_INFO]: "駅情報作成",
-      [Permission.UPDATE_STATION_INFO]: "駅情報更新",
-      [Permission.DELETE_STATION_INFO]: "駅情報削除",
-      [Permission.MODERATE_CONTENT]: "コンテンツ管理",
-      [Permission.MANAGE_NEWS]: "ニュース管理",
-      [Permission.EDIT_LAYOUT]: "レイアウト編集",
-      [Permission.MANAGE_USERS]: "ユーザー管理",
-      [Permission.CHANGE_USER_ROLES]: "ロール変更",
-      [Permission.SYSTEM_ADMIN]: "システム管理",
-      [Permission.DELETE_ANY_CONTENT]: "全削除権限",
-    }
-    return names[permission] || permission
+    return PERMISSION_NAMES[permission] || permission
   }
 
   const getRoleBadgeClass = (role: string) => {
@@ -90,6 +80,9 @@ export default function RoleManagementPage() {
     )
   }
 
+  const roles = Object.keys(ROLE_LEVELS) as Array<keyof typeof ROLE_LEVELS>
+  const permissions = Object.values(Permission)
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
@@ -99,8 +92,8 @@ export default function RoleManagementPage() {
             <div className="flex items-center space-x-2">
               <Shield className="h-8 w-8 text-blue-600" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">権限設定</h1>
-                <p className="text-sm text-gray-600">ロール別権限の確認と管理</p>
+                <h1 className="text-xl font-bold text-gray-900">ロール管理</h1>
+                <p className="text-sm text-gray-600">権限とロールの設定</p>
               </div>
             </div>
             <nav className="flex space-x-4">
@@ -119,43 +112,31 @@ export default function RoleManagementPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ロール一覧 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {Object.entries(ROLE_LEVELS).map(([role, level]) => (
-            <Card key={role} className="relative">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    {role === "開発者" ? (
-                      <Crown className="h-6 w-6 text-purple-600" />
-                    ) : (
-                      <Shield className="h-6 w-6 text-blue-600" />
-                    )}
-                    <div>
-                      <CardTitle>{role}</CardTitle>
-                      <p className="text-sm text-gray-600">レベル {level}</p>
-                    </div>
-                  </div>
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">ロール・権限管理</h2>
+          <p className="text-gray-600">
+            各ロールが持つ権限を確認できます
+          </p>
+        </div>
+
+        {/* ロール概要 */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {roles.map((role) => (
+            <Card key={role}>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between text-base">
+                  <span>{role}</span>
                   <Badge className={getRoleBadgeClass(role)}>
-                    {role}
+                    Lv.{ROLE_LEVELS[role]}
                   </Badge>
-                </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  {ROLE_DESCRIPTIONS[role as keyof typeof ROLE_DESCRIPTIONS]}
-                </p>
+                </CardTitle>
               </CardHeader>
-              
               <CardContent>
-                <div className="space-y-3">
-                  <h4 className="font-medium text-sm text-gray-700">利用可能な権限</h4>
-                  <div className="space-y-2">
-                    {ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS].map((permission) => (
-                      <div key={permission} className="flex items-center space-x-2 text-sm">
-                        {getPermissionIcon(permission)}
-                        <span>{getPermissionName(permission)}</span>
-                      </div>
-                    ))}
-                  </div>
+                <p className="text-sm text-gray-600 mb-3">
+                  {ROLE_DESCRIPTIONS[role]}
+                </p>
+                <div className="text-xs text-gray-500">
+                  権限数: {ROLE_PERMISSIONS[role].length}
                 </div>
               </CardContent>
             </Card>
@@ -163,35 +144,42 @@ export default function RoleManagementPage() {
         </div>
 
         {/* 権限マトリックス */}
-        <Card className="mb-8">
+        <Card>
           <CardHeader>
             <CardTitle>権限マトリックス</CardTitle>
-            <p className="text-sm text-gray-600">
-              各ロールがどの権限を持っているかを一覧で確認できます
-            </p>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2 px-3">権限</th>
-                    <th className="text-center py-2 px-3">閲覧者</th>
-                    <th className="text-center py-2 px-3">提供者</th>
-                    <th className="text-center py-2 px-3">編集者</th>
-                    <th className="text-center py-2 px-3">開発者</th>
+                    <th className="text-left p-3 font-medium text-gray-900">権限</th>
+                    {roles.map((role) => (
+                      <th key={role} className="text-center p-3 font-medium text-gray-900">
+                        <div className="flex flex-col items-center space-y-1">
+                          <span>{role}</span>
+                          <Badge className={getRoleBadgeClass(role)} variant="outline">
+                            Lv.{ROLE_LEVELS[role]}
+                          </Badge>
+                        </div>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.values(Permission).map((permission) => (
+                  {permissions.map((permission) => (
                     <tr key={permission} className="border-b hover:bg-gray-50">
-                      <td className="py-2 px-3 flex items-center space-x-2">
-                        {getPermissionIcon(permission)}
-                        <span>{getPermissionName(permission)}</span>
+                      <td className="p-3">
+                        <div className="flex items-center space-x-2">
+                          {getPermissionIcon(permission)}
+                          <span className="text-sm font-medium">
+                            {getPermissionName(permission)}
+                          </span>
+                        </div>
                       </td>
-                      {Object.keys(ROLE_LEVELS).map((role) => (
-                        <td key={role} className="text-center py-2 px-3">
-                          {ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS].includes(permission) ? (
+                      {roles.map((role) => (
+                        <td key={`${role}-${permission}`} className="p-3 text-center">
+                          {ROLE_PERMISSIONS[role].includes(permission) ? (
                             <div className="w-4 h-4 bg-green-500 rounded-full mx-auto"></div>
                           ) : (
                             <div className="w-4 h-4 bg-gray-200 rounded-full mx-auto"></div>
